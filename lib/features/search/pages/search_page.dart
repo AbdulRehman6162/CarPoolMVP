@@ -1,11 +1,9 @@
-
 import 'package:flutter/material.dart';
-import '../../../core/widgets/ride_card.dart';
-import '../../../core/design_system/tokens.dart';
-import '../../../core/widgets/app_chip.dart';
-import '../../../services/mock_data.dart';
-import '../../../services/whatsapp_service.dart';
 import 'package:go_router/go_router.dart';
+
+// Imports from your existing project structure
+import '../../../core/design_system/tokens.dart';
+import '../../../core/widgets/app_button.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -15,147 +13,188 @@ class SearchPage extends StatefulWidget {
 }
 
 class _SearchPageState extends State<SearchPage> {
-  String fromCity = 'Lahore';
-  String toCity = 'Islamabad';
-  DateTime date = DateTime.now().add(const Duration(days: 1));
+  // State for the search inputs
+  String? _from;
+  String? _to;
+  DateTime _date = DateTime.now();
+  int _passengers = 1;
 
   @override
   Widget build(BuildContext context) {
-    final filtered = MockData.rides.where((r) => r.from == fromCity && r.to == toCity).toList();
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Find a Ride'),
-        actions: [
-          IconButton(onPressed: () => context.push('/booking-requests'), icon: const Icon(Icons.inbox)),
-          IconButton(onPressed: () => context.push('/publish'), icon: const Icon(Icons.add_circle_outline)),
-          IconButton(onPressed: () => context.push('/chat?name=Ali%20Khan&online=true'), icon: const Icon(Icons.chat_bubble_outline)),
-        ],
+      backgroundColor: AppTokens.surfaceVariant, // Matches your tokens
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // 1. Hero Section
+            _buildHeroSection(context),
+
+            // 2. Floating Search Card
+            Transform.translate(
+              offset: const Offset(0, -40),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppTokens.space4),
+                child: _buildSearchCard(context),
+              ),
+            ),
+
+            // 3. Recent Searches / Promotions could go here
+            Padding(
+              padding: const EdgeInsets.all(AppTokens.space4),
+              child: Text(
+                  "Recent Rides",
+                  style: Theme.of(context).textTheme.titleLarge
+              ),
+            ),
+          ],
+        ),
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppTokens.space3),
-          child: Column(
+    );
+  }
+
+  Widget _buildHeroSection(BuildContext context) {
+    return Container(
+      height: 260,
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: AppTokens.brand, // Your Blue Color
+        image: DecorationImage(
+          // Placeholder image (replace with asset later)
+          image: NetworkImage('https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?q=80&w=1000&auto=format&fit=crop'),
+          fit: BoxFit.cover,
+          opacity: 0.4, // Dim the image so text pops
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Padding(
+        padding: const EdgeInsets.all(AppTokens.space6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "Your pick of rides at low prices",
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppTokens.space4),
+      decoration: BoxDecoration(
+        color: AppTokens.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+        boxShadow: AppTokens.cardShadow,
+      ),
+      child: Column(
+        children: [
+          // FROM Input
+          _buildInputTile(
+            context,
+            icon: Icons.radio_button_unchecked,
+            label: _from ?? "Leaving from",
+            isPlaceholder: _from == null,
+            onTap: () {
+              // TODO: Navigate to Location Picker
+              print("Pick Origin");
+            },
+          ),
+
+          const Divider(height: 1, indent: 40),
+
+          // TO Input
+          _buildInputTile(
+            context,
+            icon: Icons.location_on_outlined,
+            label: _to ?? "Going to",
+            isPlaceholder: _to == null,
+            onTap: () {
+              // TODO: Navigate to Location Picker
+              print("Pick Destination");
+            },
+          ),
+
+          const Divider(height: 1, indent: 40),
+
+          // Date & Passengers
+          Row(
             children: [
-              Row(children: [
-                Expanded(child: _CityField(label: 'From', value: fromCity, onTap: () => _swap())),
-                const SizedBox(width: AppTokens.space2),
-                const Icon(Icons.swap_horiz),
-                const SizedBox(width: AppTokens.space2),
-                Expanded(child: _CityField(label: 'To', value: toCity, onTap: () => _swap())),
-              ]),
-              const SizedBox(height: AppTokens.space2),
-              _DateRow(date: date, onPick: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  firstDate: DateTime.now(),
-                  lastDate: DateTime.now().add(const Duration(days: 60)),
-                  initialDate: date,
-                );
-                if (picked != null) setState(() => date = picked);
-              }),
-              const SizedBox(height: AppTokens.space3),
-              SizedBox(
-                height: 40,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: const [
-                    AppFilterChip(label: 'Cheapest', selected: true),
-                    SizedBox(width: 8),
-                    AppFilterChip(label: 'Earliest'),
-                    SizedBox(width: 8),
-                    AppFilterChip(label: 'Most seats'),
-                  ],
+              Expanded(
+                child: _buildInputTile(
+                  context,
+                  icon: Icons.calendar_today_outlined,
+                  label: "Today",
+                  isPlaceholder: false,
+                  onTap: () {
+                    // TODO: Open Date Picker
+                  },
                 ),
               ),
-              const SizedBox(height: AppTokens.space3),
+              Container(width: 1, height: 40, color: AppTokens.outline),
               Expanded(
-                child: filtered.isEmpty
-                    ? const _EmptyState()
-                    : ListView.separated(
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (_, i) => RideCard(
-                          ride: filtered[i],
-                          onRequest: () => WhatsAppService.openChat(
-                            phone: filtered[i].phone,
-                            message: 'Salam ${filtered[i].driver}, I\'m interested in your ${filtered[i].from}→${filtered[i].to} ride at ${filtered[i].time}. Is a seat available?',
-                          ),
-                        ),
-                      ),
+                child: _buildInputTile(
+                  context,
+                  icon: Icons.person_outline,
+                  label: "$_passengers",
+                  isPlaceholder: false,
+                  onTap: () {
+                    setState(() => _passengers = _passengers < 4 ? _passengers + 1 : 1);
+                  },
+                ),
               ),
             ],
           ),
-        ),
+
+          const SizedBox(height: AppTokens.space4),
+
+          // Search Button (Using your AppButton!)
+          SizedBox(
+            width: double.infinity,
+            child: AppButton.primary(
+              "Search",
+              onPressed: () {
+                // Navigate to results
+                context.pushNamed('bookingRequests'); // Example navigation
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  void _swap() => setState(() {
-    final tmp = fromCity; fromCity = toCity; toCity = tmp;
-  });
-}
-
-class _CityField extends StatelessWidget {
-  final String label;
-  final String value;
-  final VoidCallback onTap;
-  const _CityField({required this.label, required this.value, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildInputTile(
+      BuildContext context, {
+        required IconData icon,
+        required String label,
+        required bool isPlaceholder,
+        required VoidCallback onTap,
+      }) {
     return InkWell(
       onTap: onTap,
-      child: Container(
-        height: 44,
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: AppTokens.space3),
-        decoration: BoxDecoration(
-          color: AppTokens.surfaceVariant,
-          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-          border: Border.all(color: AppTokens.outline.withOpacity(0.6)),
+      borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppTokens.space4),
+        child: Row(
+          children: [
+            Icon(icon, color: AppTokens.outline, size: 24),
+            const SizedBox(width: AppTokens.space3),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: isPlaceholder ? Colors.grey : AppTokens.text,
+                fontWeight: isPlaceholder ? FontWeight.w400 : FontWeight.w600,
+              ),
+            ),
+          ],
         ),
-        child: Row(children: [
-          Icon(label == 'From' ? Icons.radio_button_checked : Icons.flag, size: 18),
-          const SizedBox(width: 8),
-          Text(value),
-        ]),
       ),
-    );
-  }
-}
-
-class _DateRow extends StatelessWidget {
-  final DateTime date;
-  final VoidCallback onPick;
-  const _DateRow({required this.date, required this.onPick});
-
-  @override
-  Widget build(BuildContext context) {
-    final label = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-    return Row(
-      children: [
-        const Icon(Icons.calendar_month),
-        const SizedBox(width: 8),
-        Text(label),
-        const Spacer(),
-        TextButton(onPressed: onPick, child: const Text('Change')),
-      ],
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: const [
-        Icon(Icons.hourglass_empty, size: 64),
-        SizedBox(height: 8),
-        Text('No rides found for this route.'),
-        Text('Try another time or swap cities.'),
-      ]),
     );
   }
 }
