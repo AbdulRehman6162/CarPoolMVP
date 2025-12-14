@@ -2,43 +2,37 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../features/search/pages/search_page.dart';
-import '../features/booking/pages/booking_requests_page.dart';
-import '../features/booking/pages/booking_confirmed_page.dart';
-import '../features/publish/pages/publish_ride_page.dart';
-import '../features/chat/pages/chat_page.dart';
+import '../features/ride_search/presentation/pages/location_picker_page.dart';
+import '../features/ride_search/presentation/pages/search_results_page.dart';
+import '../features/ride_search/presentation/pages/ride_details_page.dart';
+import '../features/ride_search/domain/entities/ride.dart';
 
 final router = GoRouter(
   initialLocation: '/',
   routes: [
     GoRoute(
-      path: '/',
-      name: 'search',
-      builder: (context, state) => const SearchPage(),
-    ),
-    GoRoute(
-      path: '/booking-requests',
-      name: 'bookingRequests',
-      builder: (context, state) => const BookingRequestsPage(),
-    ),
-    GoRoute(
-      path: '/booking-confirmed',
-      name: 'bookingConfirmed',
-      builder: (context, state) => const BookingConfirmedPage(),
-    ),
-    GoRoute(
-      path: '/publish',
-      name: 'publishRide',
-      builder: (context, state) => const PublishRidePage(),
-    ),
-    GoRoute(
-      path: '/chat',
-      name: 'chat',
+      path: '/results',
       builder: (context, state) {
-        final name = state.uri.queryParameters['name'] ?? 'Ali Khan';
-        final online = state.uri.queryParameters['online'] ?? 'true';
-        final avatar = state.uri.queryParameters['avatar'];
-        return ChatPage(name: name, isOnline: online == 'true', avatarUrl: avatar);
+        final extras = state.extra as Map<String, dynamic>;
+        return SearchResultsPage(
+            from: extras['from'],
+            to: extras['to'],
+            date: extras['date']
+        );
+      },
+    ),
+    GoRoute(
+      path: '/ride-details',
+      builder: (context, state) {
+        final ride = state.extra as Ride;
+        return RideDetailsPage(ride: ride);
+      },
+    ),
+    GoRoute(
+      path: '/location-picker',
+      builder: (context, state) {
+        final title = state.extra as String? ?? 'Select Location';
+        return LocationPickerPage(title: title);
       },
     ),
   ],
