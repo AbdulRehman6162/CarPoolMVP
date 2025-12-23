@@ -1,0 +1,1067 @@
+--- lib/features/ride_search/data/models/booking_result_model.dart
++++ lib/features/ride_search/data/models/booking_result_model.dart
+@@ -1,52 +1,62 @@
+-import '../../domain/entities/booking_result.dart';
+-import '../../domain/entities/booking_status.dart';
+-
+-class BookingResultModel extends BookingResult {
+-  const BookingResultModel({
+-    required BookingStatus status,
+-    required String message,
+-  }) : super(
+-    status: status,
+-    message: message,
+-  );
+-
+-  factory BookingResultModel.fromJson(Map<String, dynamic> json) {
+-    final statusString = json['status'] as String;
+-    final BookingStatus status;
+-    switch (statusString) {
+-      case 'CONFIRMED':
+-        status = BookingStatus.confirmed;
+-        break;
+-      case 'PENDING_DRIVER':
+-        status = BookingStatus.pendingDriver;
+-        break;
+-      case 'DECLINED':
+-      default:
+-        status = BookingStatus.declined;
+-        break;
+-    }
+-    return BookingResultModel(
+-      status: status,
+-      message: json['message'] as String? ?? '',
+-    );
+-  }
+-
+-  Map<String, dynamic> toJson() {
+-    String statusString;
+-    switch (status) {
+-      case BookingStatus.confirmed:
+-        statusString = 'CONFIRMED';
+-        break;
+-      case BookingStatus.pendingDriver:
+-        statusString = 'PENDING_DRIVER';
+-        break;
+-      case BookingStatus.declined:
+-        statusString = 'DECLINED';
+-        break;
+-    }
+-    return {
+-      'status': statusString,
+-      'message': message,
+-    };
+-  }
+-}
++import '../../domain/entities/booking_result.dart';
++import '../../domain/entities/booking_status.dart';
++
++/// Data Transfer Object for booking result.
++/// Keeps data-layer JSON parsing separate from domain entities (LSP-safe).
++class BookingResultModel {
++  final BookingStatus status;
++  final String message;
++
++  const BookingResultModel({
++    required this.status,
++    required this.message,
++  });
++
++  factory BookingResultModel.fromJson(Map<String, dynamic> json) {
++    final statusString = json['status'] as String? ?? 'DECLINED';
++    final BookingStatus status;
++    switch (statusString) {
++      case 'CONFIRMED':
++        status = BookingStatus.confirmed;
++        break;
++      case 'PENDING_DRIVER':
++        status = BookingStatus.pendingDriver;
++        break;
++      case 'DECLINED':
++      default:
++        status = BookingStatus.declined;
++        break;
++    }
++
++    return BookingResultModel(
++      status: status,
++      message: json['message'] as String? ?? '',
++    );
++  }
++
++  Map<String, dynamic> toJson() {
++    String statusString;
++    switch (status) {
++      case BookingStatus.confirmed:
++        statusString = 'CONFIRMED';
++        break;
++      case BookingStatus.pendingDriver:
++        statusString = 'PENDING_DRIVER';
++        break;
++      case BookingStatus.declined:
++        statusString = 'DECLINED';
++        break;
++    }
++    return {
++      'status': statusString,
++      'message': message,
++    };
++  }
++
++  BookingResult toEntity() => BookingResult(status: status, message: message);
++
++  static BookingResultModel fromEntity(BookingResult r) => BookingResultModel(
++        status: r.status,
++        message: r.message,
++      );
++}
+--- lib/features/ride_search/data/repositories/ride_repository_impl.dart
++++ lib/features/ride_search/data/repositories/ride_repository_impl.dart
+@@ -25,6 +25,6 @@
+   @override
+   Future<BookingResult> submitBooking(BookingRequest request) async {
+     final resultModel = await remote.sendBooking(request);
+-    return resultModel;
++    return resultModel.toEntity();
+   }
+ }
+--- lib/features/post_ride/presentation/providers/post_ride_publish_provider.dart
++++ lib/features/post_ride/presentation/providers/post_ride_publish_provider.dart
+@@ -1,42 +1,63 @@
+-import 'package:flutter/foundation.dart';
+-import '../../application/usecases/publish_return_ride_usecase.dart';
+-import '../../application/usecases/publish_ride_usecase.dart';
+-import '../../domain/entities/ride_draft.dart';
+-
+-class PostRidePublishProvider extends ChangeNotifier {
+-  final PublishRideUseCase _publishRide;
+-  final PublishReturnRideUseCase _publishReturnRide;
+-
+-  PostRidePublishProvider(this._publishRide, this._publishReturnRide);
+-
+-  bool _loading = false;
+-  String? _lastPublishedRideId;
+-
+-  bool get loading => _loading;
+-  String? get lastPublishedRideId => _lastPublishedRideId;
+-
+-  Future<String> publish(RideDraft draft) async {
+-    _loading = true;
+-    notifyListeners();
+-    try {
+-      final id = await _publishRide(draft);
+-      _lastPublishedRideId = id;
+-      return id;
+-    } finally {
+-      _loading = false;
+-      notifyListeners();
+-    }
+-  }
+-
+-  Future<String> publishReturn(RideDraft returnDraft) async {
+-    _loading = true;
+-    notifyListeners();
+-    try {
+-      final id = await _publishReturnRide(returnDraft);
+-      return id;
+-    } finally {
+-      _loading = false;
+-      notifyListeners();
+-    }
+-  }
+-}
++import 'package:flutter/foundation.dart';
++
++import '../../application/usecases/publish_return_ride_usecase.dart';
++import '../../application/usecases/publish_ride_usecase.dart';
++import '../../domain/entities/ride_draft.dart';
++
++class PostRidePublishProvider extends ChangeNotifier {
++  final PublishRideUseCase _publishRide;
++  final PublishReturnRideUseCase _publishReturnRide;
++
++  PostRidePublishProvider(this._publishRide, this._publishReturnRide);
++
++  bool _loading = false;
++  String? _lastPublishedRideId;
++  String? _errorMessage;
++
++  bool get loading => _loading;
++  String? get lastPublishedRideId => _lastPublishedRideId;
++  String? get errorMessage => _errorMessage;
++
++  void _setLoading(bool value) {
++    _loading = value;
++    notifyListeners();
++  }
++
++  void _setError(String? message) {
++    _errorMessage = message;
++    notifyListeners();
++  }
++
++  /// Returns the published ride id, or null if publishing failed.
++  Future<String?> publish(RideDraft draft) async {
++    _setError(null);
++    _setLoading(true);
++
++    try {
++      final id = await _publishRide(draft);
++      _lastPublishedRideId = id;
++      return id;
++    } catch (e) {
++      _setError(e.toString());
++      return null;
++    } finally {
++      _setLoading(false);
++    }
++  }
++
++  /// Returns the published return ride id, or null if publishing failed.
++  Future<String?> publishReturn(RideDraft returnDraft) async {
++    _setError(null);
++    _setLoading(true);
++
++    try {
++      final id = await _publishReturnRide(returnDraft);
++      return id;
++    } catch (e) {
++      _setError(e.toString());
++      return null;
++    } finally {
++      _setLoading(false);
++    }
++  }
++}
+--- lib/features/post_ride/presentation/pages/ride_publish_comments_page.dart
++++ lib/features/post_ride/presentation/pages/ride_publish_comments_page.dart
+@@ -69,6 +69,13 @@
+             final rideId = await publishProv.publish(draft);
+ 
+             if (!mounted) return;
++
++            if (rideId == null) {
++              final msg = publishProv.errorMessage ?? 'Failed to publish ride.';
++              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
++              return;
++            }
++
+             context.go('/post-ride/return/prompt?rideId=$rideId');
+           },
+           child: Column(
+--- lib/features/post_ride/presentation/pages/return_ride_price_page.dart
++++ lib/features/post_ride/presentation/pages/return_ride_price_page.dart
+@@ -56,6 +56,13 @@
+             final returnRideId = await publishProv.publishReturn(returnDraft);
+ 
+             if (!mounted) return;
++
++            if (returnRideId == null) {
++              final msg = publishProv.errorMessage ?? 'Failed to publish return ride.';
++              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
++              return;
++            }
++
+             context.go('/?returnRideId=$returnRideId');
+           },
+           child: const Center(
+--- lib/core/platform/chat_launcher.dart
++++ lib/core/platform/chat_launcher.dart
+@@ -0,0 +1,8 @@
++/// Platform boundary for launching external chat apps (e.g., WhatsApp).
++/// Keep UI + domain independent from url_launcher or other plugins.
++abstract class ChatLauncher {
++  Future<bool> openWhatsApp({
++    required String phone,
++    required String message,
++  });
++}
+--- lib/services/url_launcher_chat_launcher.dart
++++ lib/services/url_launcher_chat_launcher.dart
+@@ -0,0 +1,15 @@
++import 'package:url_launcher/url_launcher.dart';
++
++import '../core/platform/chat_launcher.dart';
++
++class UrlLauncherChatLauncher implements ChatLauncher {
++  @override
++  Future<bool> openWhatsApp({
++    required String phone,
++    required String message,
++  }) async {
++    final msg = Uri.encodeComponent(message);
++    final url = Uri.parse('https://wa.me/$phone?text=$msg');
++    return launchUrl(url, mode: LaunchMode.externalApplication);
++  }
++}
+--- lib/services/whatsapp_service.dart
++++ lib/services/whatsapp_service.dart
+@@ -1,10 +1,13 @@
++import '../core/platform/chat_launcher.dart';
++import 'url_launcher_chat_launcher.dart';
+ 
+-import 'package:url_launcher/url_launcher.dart';
+-
++@Deprecated('Use ChatLauncher via dependency injection (UrlLauncherChatLauncher).')
+ class WhatsAppService {
+-  static Future<bool> openChat({required String phone, required String message}) async {
+-    final msg = Uri.encodeComponent(message);
+-    final url = Uri.parse('https://wa.me/$phone?text=$msg');
+-    return launchUrl(url, mode: LaunchMode.externalApplication);
++  static Future<bool> openChat({
++    required String phone,
++    required String message,
++  }) async {
++    final launcher = UrlLauncherChatLauncher();
++    return launcher.openWhatsApp(phone: phone, message: message);
+   }
+ }
+--- lib/app/routes/auth_routes.dart
++++ lib/app/routes/auth_routes.dart
+@@ -0,0 +1,53 @@
++import 'package:flutter/material.dart';
++import 'package:go_router/go_router.dart';
++
++import '../../features/auth/presentation/pages/login_page.dart';
++import '../../features/auth/presentation/pages/otp_verification_page.dart';
++import '../../features/auth/presentation/pages/signup_page.dart';
++
++List<RouteBase> authRoutes() => [
++      GoRoute(
++        path: '/login',
++        name: 'login',
++        builder: (context, state) {
++          final from = state.uri.queryParameters['from'];
++          return LoginPage(from: from);
++        },
++      ),
++      GoRoute(
++        path: '/signup',
++        name: 'signup',
++        builder: (context, state) => const SignupPage(),
++      ),
++      GoRoute(
++        path: '/otp-verification',
++        name: 'otp-verification',
++        builder: (context, state) {
++          final email = state.extra as String?;
++          if (email == null || email.isEmpty) {
++            return const _MissingEmailErrorPage();
++          }
++          return OtpVerificationPage(email: email);
++        },
++      ),
++    ];
++
++class _MissingEmailErrorPage extends StatelessWidget {
++  const _MissingEmailErrorPage();
++
++  @override
++  Widget build(BuildContext context) {
++    return const Scaffold(
++      body: SafeArea(
++        child: Center(
++          child: Text(
++            'OTP Verification requires an email.\n\n'
++            'Fix: Navigate using:\n'
++            "context.push('/otp-verification', extra: email);",
++            textAlign: TextAlign.center,
++          ),
++        ),
++      ),
++    );
++  }
++}
+--- lib/app/routes/shell_routes.dart
++++ lib/app/routes/shell_routes.dart
+@@ -0,0 +1,143 @@
++import 'package:go_router/go_router.dart';
++
++import '../../core/widgets/app_shell_scaffold.dart';
++
++// Ride Search (Home)
++import '../../features/ride_search/domain/entities/ride.dart';
++import '../../features/ride_search/presentation/pages/booking_result_page.dart';
++import '../../features/ride_search/presentation/pages/booking_summary_page.dart';
++import '../../features/ride_search/presentation/pages/ride_details_page.dart';
++import '../../features/ride_search/presentation/pages/ride_results_page.dart';
++import '../../features/ride_search/presentation/pages/ride_search_page.dart';
++
++// Post Ride (Wizard Pages)
++import '../../features/post_ride/presentation/pages/add_vehicle_page.dart';
++import '../../features/post_ride/presentation/pages/dropoff_pinpoint_initial_page.dart';
++import '../../features/post_ride/presentation/pages/dropoff_pinpoint_selected_page.dart';
++import '../../features/post_ride/presentation/pages/enable_instant_booking_page.dart';
++import '../../features/post_ride/presentation/pages/pickup_pinpoint_initial_page.dart';
++import '../../features/post_ride/presentation/pages/pickup_pinpoint_selected_page.dart';
++import '../../features/post_ride/presentation/pages/post_ride_date_page.dart';
++import '../../features/post_ride/presentation/pages/post_ride_dropoff_address_page.dart';
++import '../../features/post_ride/presentation/pages/post_ride_pickup_address_page.dart';
++import '../../features/post_ride/presentation/pages/post_ride_seats_page.dart';
++import '../../features/post_ride/presentation/pages/post_ride_time_page.dart';
++import '../../features/post_ride/presentation/pages/price_per_seat_page.dart';
++import '../../features/post_ride/presentation/pages/return_ride_date_page.dart';
++import '../../features/post_ride/presentation/pages/return_ride_price_page.dart';
++import '../../features/post_ride/presentation/pages/return_ride_prompt_page.dart';
++import '../../features/post_ride/presentation/pages/return_ride_seats_page.dart';
++import '../../features/post_ride/presentation/pages/return_ride_time_page.dart';
++import '../../features/post_ride/presentation/pages/ride_publish_comments_page.dart';
++import '../../features/post_ride/presentation/pages/route_confirmation_page.dart';
++import '../../features/post_ride/presentation/pages/vehicle_select_page.dart';
++
++// Other Tabs
++import '../../features/chat/presentation/pages/chat_page.dart';
++import '../../features/my_rides/presentation/pages/my_rides_page.dart';
++import '../../features/profile/presentation/pages/profile_page.dart';
++
++RouteBase appShellRoute() => ShellRoute(
++      builder: (context, state, child) => AppShellScaffold(child: child),
++      routes: [
++        // 1) SEARCH TAB (Home)
++        GoRoute(
++          path: '/',
++          name: 'home',
++          builder: (context, state) => const RideSearchPage(),
++          routes: [
++            GoRoute(
++              path: 'results',
++              name: 'results',
++              builder: (context, state) => const RideResultsPage(),
++            ),
++            GoRoute(
++              path: 'ride-details',
++              name: 'ride-details',
++              builder: (context, state) {
++                final ride = state.extra as Ride;
++                return RideDetailsPage(ride: ride);
++              },
++            ),
++            GoRoute(
++              path: 'booking-summary',
++              name: 'booking-summary',
++              builder: (context, state) {
++                final ride = state.extra as Ride;
++                return BookingSummaryPage(ride: ride);
++              },
++            ),
++            GoRoute(
++              path: 'booking-result',
++              name: 'booking-result',
++              builder: (context, state) => const BookingResultPage(),
++            ),
++          ],
++        ),
++
++        // 2) POST RIDE TAB
++        GoRoute(
++          path: '/post-ride',
++          name: 'post-ride',
++          builder: (context, state) => const PostRidePickupAddressPage(),
++          routes: [
++            GoRoute(path: 'pickup-pin', builder: (_, __) => const PickupPinpointInitialPage()),
++            GoRoute(path: 'pickup-pin/selected', builder: (_, __) => const PickupPinpointSelectedPage()),
++            GoRoute(path: 'dropoff', builder: (_, __) => const PostRideDropoffAddressPage()),
++            GoRoute(path: 'dropoff-pin', builder: (_, __) => const DropoffPinpointInitialPage()),
++            GoRoute(path: 'dropoff-pin/selected', builder: (_, __) => const DropoffPinpointSelectedPage()),
++            GoRoute(path: 'route', builder: (_, __) => const RouteConfirmationPage()),
++            GoRoute(path: 'date', builder: (_, __) => const PostRideDatePage()),
++            GoRoute(path: 'time', builder: (_, __) => const PostRideTimePage()),
++            GoRoute(path: 'seats', builder: (_, __) => const PostRideSeatsPage()),
++            GoRoute(path: 'instant-booking', builder: (_, __) => const EnableInstantBookingPage()),
++            GoRoute(path: 'price', builder: (_, __) => const PricePerSeatPage()),
++            GoRoute(path: 'vehicle', builder: (_, __) => const VehicleSelectPage()),
++            GoRoute(
++              path: 'add-vehicle',
++              builder: (context, state) {
++                final from = state.uri.queryParameters['from'];
++                return AddVehiclePage(from: from);
++              },
++            ),
++            GoRoute(path: 'publish-comments', builder: (_, __) => const RidePublishCommentsPage()),
++
++            // Return ride prompt
++            GoRoute(
++              path: 'return/prompt',
++              builder: (context, state) {
++                final rideId = state.uri.queryParameters['rideId'];
++                return ReturnRidePromptPage(rideId: rideId);
++              },
++            ),
++
++            // Return ride steps
++            GoRoute(path: 'return/date', builder: (_, __) => const ReturnRideDatePage()),
++            GoRoute(path: 'return/time', builder: (_, __) => const ReturnRideTimePage()),
++            GoRoute(path: 'return/seats', builder: (_, __) => const ReturnRideSeatsPage()),
++            GoRoute(path: 'return/price', builder: (_, __) => const ReturnRidePricePage()),
++          ],
++        ),
++
++        // 3) YOUR RIDES TAB
++        GoRoute(
++          path: '/my-rides',
++          name: 'my-rides',
++          builder: (context, state) => const MyRidesPage(),
++        ),
++
++        // 4) CHAT TAB
++        GoRoute(
++          path: '/chat',
++          name: 'chat',
++          builder: (context, state) => const ChatPage(),
++        ),
++
++        // 5) PROFILE TAB
++        GoRoute(
++          path: '/profile',
++          name: 'profile',
++          builder: (context, state) => const ProfilePage(),
++        ),
++      ],
++    );
+--- lib/app/routes/picker_routes.dart
++++ lib/app/routes/picker_routes.dart
+@@ -0,0 +1,32 @@
++import 'package:go_router/go_router.dart';
++
++import '../../features/ride_search/presentation/pages/select_city_page.dart';
++import '../../features/ride_search/presentation/pages/select_date_page.dart';
++import '../../features/ride_search/presentation/pages/select_seats_page.dart';
++
++List<RouteBase> pickerRoutes() => [
++      GoRoute(
++        path: '/select-city',
++        name: 'select-city',
++        builder: (context, state) {
++          final title = state.extra as String? ?? 'Select City';
++          return SelectCityPage(title: title);
++        },
++      ),
++      GoRoute(
++        path: '/select-date',
++        name: 'select-date',
++        builder: (context, state) {
++          final initialDate = state.extra as DateTime? ?? DateTime.now();
++          return SelectDatePage(initialDate: initialDate);
++        },
++      ),
++      GoRoute(
++        path: '/select-seats',
++        name: 'select-seats',
++        builder: (context, state) {
++          final initialSeats = state.extra as int? ?? 1;
++          return SelectSeatsPage(initialSeats: initialSeats);
++        },
++      ),
++    ];
+--- lib/app/router.dart
++++ lib/app/router.dart
+@@ -1,258 +1,14 @@
+-import 'package:flutter/material.dart';
+ import 'package:go_router/go_router.dart';
+-import 'package:provider/provider.dart';
+ 
+-import '../core/widgets/app_shell_scaffold.dart';
+-
+-// Auth
+-import '../features/auth/presentation/pages/login_page.dart';
+-import '../features/auth/presentation/pages/signup_page.dart';
+-import '../features/auth/presentation/pages/otp_verification_page.dart';
+-import '../features/auth/presentation/providers/auth_provider.dart';
+-
+-// Ride Search (Home)
+-import '../features/ride_search/presentation/pages/ride_search_page.dart';
+-import '../features/ride_search/presentation/pages/ride_results_page.dart';
+-import '../features/ride_search/presentation/pages/ride_details_page.dart';
+-import '../features/ride_search/presentation/pages/booking_summary_page.dart';
+-import '../features/ride_search/presentation/pages/booking_result_page.dart';
+-import '../features/ride_search/presentation/pages/select_city_page.dart';
+-import '../features/ride_search/presentation/pages/select_date_page.dart';
+-import '../features/ride_search/presentation/pages/select_seats_page.dart';
+-import '../features/ride_search/domain/entities/ride.dart';
+-
+-// Post Ride (Wizard Pages)
+-import '../features/post_ride/presentation/pages/post_ride_pickup_address_page.dart';
+-import '../features/post_ride/presentation/pages/pickup_pinpoint_initial_page.dart';
+-import '../features/post_ride/presentation/pages/pickup_pinpoint_selected_page.dart';
+-import '../features/post_ride/presentation/pages/post_ride_dropoff_address_page.dart';
+-import '../features/post_ride/presentation/pages/dropoff_pinpoint_initial_page.dart';
+-import '../features/post_ride/presentation/pages/dropoff_pinpoint_selected_page.dart';
+-import '../features/post_ride/presentation/pages/route_confirmation_page.dart';
+-import '../features/post_ride/presentation/pages/post_ride_date_page.dart';
+-import '../features/post_ride/presentation/pages/post_ride_time_page.dart';
+-import '../features/post_ride/presentation/pages/post_ride_seats_page.dart';
+-import '../features/post_ride/presentation/pages/enable_instant_booking_page.dart';
+-import '../features/post_ride/presentation/pages/price_per_seat_page.dart';
+-import '../features/post_ride/presentation/pages/vehicle_select_page.dart';
+-import '../features/post_ride/presentation/pages/add_vehicle_page.dart';
+-import '../features/post_ride/presentation/pages/ride_publish_comments_page.dart';
+-import '../features/post_ride/presentation/pages/return_ride_prompt_page.dart';
+-
+-// Return Ride step pages
+-import '../features/post_ride/presentation/pages/return_ride_date_page.dart';
+-import '../features/post_ride/presentation/pages/return_ride_time_page.dart';
+-import '../features/post_ride/presentation/pages/return_ride_seats_page.dart';
+-import '../features/post_ride/presentation/pages/return_ride_price_page.dart';
+-
+-// Other Tabs
+-import '../features/my_rides/presentation/pages/my_rides_page.dart';
+-import '../features/chat/presentation/pages/chat_page.dart';
+-import '../features/profile/presentation/pages/profile_page.dart';
++import 'routes/auth_routes.dart';
++import 'routes/picker_routes.dart';
++import 'routes/shell_routes.dart';
+ 
+ final router = GoRouter(
+   initialLocation: '/',
+   routes: [
+-    // -------------------------------------------------------------------------
+-    // AUTH ROUTES (No Bottom Nav)
+-    // -------------------------------------------------------------------------
+-    GoRoute(
+-      path: '/login',
+-      name: 'login',
+-      builder: (context, state) {
+-        final from = state.uri.queryParameters['from'];
+-        return LoginPage(from: from);
+-      },
+-    ),
+-
+-    // ✅ FIX: SignupPage has NO `from`
+-    GoRoute(
+-      path: '/signup',
+-      name: 'signup',
+-      builder: (context, state) => const SignupPage(),
+-    ),
+-
+-    // ✅ FIX: OtpVerificationPage requires `email`
+-    GoRoute(
+-      path: '/otp-verification',
+-      name: 'otp-verification',
+-      builder: (context, state) {
+-        final email = state.extra as String?;
+-        if (email == null || email.isEmpty) {
+-          return const _MissingEmailErrorPage();
+-        }
+-        return OtpVerificationPage(email: email);
+-      },
+-    ),
+-
+-    // -------------------------------------------------------------------------
+-    // MAIN APP SHELL (Bottom Nav)
+-    // -------------------------------------------------------------------------
+-    ShellRoute(
+-      builder: (context, state, child) => AppShellScaffold(child: child),
+-      routes: [
+-        // 1) SEARCH TAB (Home)
+-        GoRoute(
+-          path: '/',
+-          name: 'home',
+-          builder: (context, state) => const RideSearchPage(),
+-          routes: [
+-            GoRoute(
+-              path: 'results',
+-              name: 'results',
+-              builder: (context, state) => const RideResultsPage(),
+-            ),
+-            GoRoute(
+-              path: 'ride-details',
+-              name: 'ride-details',
+-              builder: (context, state) {
+-                final ride = state.extra as Ride;
+-                return RideDetailsPage(ride: ride);
+-              },
+-            ),
+-
+-            // Booking Summary requires auth, but uses BookingProvider internally
+-            GoRoute(
+-              path: 'booking-summary',
+-              name: 'booking-summary',
+-              redirect: (context, state) {
+-                final auth = Provider.of<AuthProvider>(context, listen: false);
+-                if (!auth.isLoggedIn) {
+-                  final from = Uri.encodeComponent(state.uri.toString());
+-                  return '/login?from=$from';
+-                }
+-                return null;
+-              },
+-              builder: (context, state) => const BookingSummaryPage(),
+-            ),
+-
+-            // ✅ FIX: BookingResultPage has NO bookingId argument
+-            GoRoute(
+-              path: 'booking-result',
+-              name: 'booking-result',
+-              builder: (context, state) => const BookingResultPage(),
+-            ),
+-          ],
+-        ),
+-
+-        // 2) POST RIDE TAB (Wizard Flow)
+-        GoRoute(
+-          path: '/post-ride',
+-          name: 'post-ride',
+-
+-          // ✅ FIX: redirect ONLY when user hits EXACT /post-ride
+-          // This prevents breaking /post-ride/time or /post-ride/return/date, etc.
+-          redirect: (context, state) {
+-            return state.uri.path == '/post-ride' ? '/post-ride/pickup' : null;
+-          },
+-
+-          routes: [
+-            GoRoute(path: 'pickup', builder: (_, __) => const PostRidePickupAddressPage()),
+-            GoRoute(path: 'pickup-pin', builder: (_, __) => const PickupPinpointInitialPage()),
+-            GoRoute(path: 'pickup-pin/selected', builder: (_, __) => const PickupPinpointSelectedPage()),
+-            GoRoute(path: 'dropoff', builder: (_, __) => const PostRideDropoffAddressPage()),
+-            GoRoute(path: 'dropoff-pin', builder: (_, __) => const DropoffPinpointInitialPage()),
+-            GoRoute(path: 'dropoff-pin/selected', builder: (_, __) => const DropoffPinpointSelectedPage()),
+-            GoRoute(path: 'route', builder: (_, __) => const RouteConfirmationPage()),
+-            GoRoute(path: 'date', builder: (_, __) => const PostRideDatePage()),
+-            GoRoute(path: 'time', builder: (_, __) => const PostRideTimePage()),
+-            GoRoute(path: 'seats', builder: (_, __) => const PostRideSeatsPage()),
+-            GoRoute(path: 'instant-booking', builder: (_, __) => const EnableInstantBookingPage()),
+-            GoRoute(path: 'price', builder: (_, __) => const PricePerSeatPage()),
+-            GoRoute(path: 'vehicle', builder: (_, __) => const VehicleSelectPage()),
+-            GoRoute(
+-              path: 'add-vehicle',
+-              builder: (context, state) {
+-                final from = state.uri.queryParameters['from'];
+-                return AddVehiclePage(from: from);
+-              },
+-            ),
+-            GoRoute(path: 'publish-comments', builder: (_, __) => const RidePublishCommentsPage()),
+-
+-            // Return ride prompt
+-            GoRoute(
+-              path: 'return/prompt',
+-              builder: (context, state) {
+-                final rideId = state.uri.queryParameters['rideId'];
+-                return ReturnRidePromptPage(rideId: rideId);
+-              },
+-            ),
+-
+-            // Return ride steps
+-            GoRoute(path: 'return/date', builder: (_, __) => const ReturnRideDatePage()),
+-            GoRoute(path: 'return/time', builder: (_, __) => const ReturnRideTimePage()),
+-            GoRoute(path: 'return/seats', builder: (_, __) => const ReturnRideSeatsPage()),
+-            GoRoute(path: 'return/price', builder: (_, __) => const ReturnRidePricePage()),
+-          ],
+-        ),
+-
+-        // 3) YOUR RIDES TAB
+-        GoRoute(
+-          path: '/my-rides',
+-          name: 'my-rides',
+-          builder: (context, state) => const MyRidesPage(),
+-        ),
+-
+-        // 4) CHAT TAB
+-        GoRoute(
+-          path: '/chat',
+-          name: 'chat',
+-          builder: (context, state) => const ChatPage(),
+-        ),
+-
+-        // 5) PROFILE TAB
+-        GoRoute(
+-          path: '/profile',
+-          name: 'profile',
+-          builder: (context, state) => const ProfilePage(),
+-        ),
+-      ],
+-    ),
+-
+-    // Pickers (outside shell)
+-    GoRoute(
+-      path: '/select-city',
+-      name: 'select-city',
+-      builder: (context, state) {
+-        final title = state.extra as String? ?? 'Select City';
+-        return SelectCityPage(title: title);
+-      },
+-    ),
+-    GoRoute(
+-      path: '/select-date',
+-      name: 'select-date',
+-      builder: (context, state) {
+-        final initialDate = state.extra as DateTime? ?? DateTime.now();
+-        return SelectDatePage(initialDate: initialDate);
+-      },
+-    ),
+-    GoRoute(
+-      path: '/select-seats',
+-      name: 'select-seats',
+-      builder: (context, state) {
+-        final initialSeats = state.extra as int? ?? 1;
+-        return SelectSeatsPage(initialSeats: initialSeats);
+-      },
+-    ),
++    ...authRoutes(),
++    appShellRoute(),
++    ...pickerRoutes(),
+   ],
+ );
+-
+-class _MissingEmailErrorPage extends StatelessWidget {
+-  const _MissingEmailErrorPage();
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return const Scaffold(
+-      body: SafeArea(
+-        child: Center(
+-          child: Text(
+-            'OTP Verification requires an email.\n\n'
+-                'Fix: Navigate using:\n'
+-                "context.push('/otp-verification', extra: email);",
+-            textAlign: TextAlign.center,
+-          ),
+-        ),
+-      ),
+-    );
+-  }
+-}
+--- lib/di/app_di.dart
++++ lib/di/app_di.dart
+@@ -0,0 +1,120 @@
++import 'package:provider/provider.dart';
++import 'package:provider/single_child_widget.dart';
++
++import '../core/platform/chat_launcher.dart';
++import '../services/url_launcher_chat_launcher.dart';
++
++// ------------------- RIDE SEARCH -------------------
++import '../features/ride_search/data/datasources/ride_remote_data_source.dart';
++import '../features/ride_search/data/repositories/ride_repository_impl.dart';
++import '../features/ride_search/domain/usecases/book_ride_usecase.dart';
++import '../features/ride_search/domain/usecases/search_rides_usecase.dart';
++import '../features/ride_search/presentation/provider/booking_provider.dart';
++import '../features/ride_search/presentation/provider/ride_search_provider.dart';
++
++// ------------------- AUTH -------------------
++import '../features/auth/data/repositories/auth_repository_impl.dart';
++import '../features/auth/presentation/providers/auth_provider.dart';
++
++// ------------------- VEHICLE -------------------
++import '../features/vehicle/data/repositories/vehicle_repository_memory.dart';
++import '../features/vehicle/presentation/providers/vehicle_provider.dart';
++
++// ------------------- POST RIDE -------------------
++import '../features/post_ride/data/repositories/ride_draft_repository_memory.dart';
++import '../features/post_ride/data/repositories/route_repository_mock.dart';
++import '../features/post_ride/data/repositories/ride_publish_repository_mock.dart';
++
++import '../features/post_ride/application/usecases/create_new_draft_usecase.dart';
++import '../features/post_ride/application/usecases/save_draft_usecase.dart';
++import '../features/post_ride/application/usecases/get_route_options_usecase.dart';
++import '../features/post_ride/application/usecases/publish_ride_usecase.dart';
++import '../features/post_ride/application/usecases/publish_return_ride_usecase.dart';
++import '../features/post_ride/application/usecases/ensure_publish_eligibility_usecase.dart';
++
++import '../features/post_ride/presentation/providers/post_ride_draft_provider.dart';
++import '../features/post_ride/presentation/providers/post_ride_publish_provider.dart';
++
++/// Minimal DI module for Provider-based apps.
++/// Keeps `main.dart` small and prevents it from growing into a wiring monolith.
++class AppDI {
++  static List<SingleChildWidget> providers() {
++    // ---------------------------------------------------------------------------
++    // DATA LAYER (Repos + Datasources)
++    // ---------------------------------------------------------------------------
++
++    final authRepo = AuthRepositoryImpl();
++
++    final rideRemote = RideRemoteDataSource();
++    final rideRepo = RideRepositoryImpl(rideRemote);
++
++    final vehicleRepo = VehicleRepositoryMemory();
++
++    final draftRepo = RideDraftRepositoryMemory();
++    final routeRepo = RouteRepositoryMock();
++    final publishRepo = RidePublishRepositoryMock();
++
++    // ---------------------------------------------------------------------------
++    // USE CASES
++    // ---------------------------------------------------------------------------
++
++    final searchRidesUseCase = SearchRidesUseCase(rideRepo);
++    final bookRideUseCase = BookRideUseCase(rideRepo);
++
++    final createDraftUseCase = CreateNewDraftUseCase(draftRepo);
++    final saveDraftUseCase = SaveDraftUseCase(draftRepo);
++    final getRoutesUseCase = GetRouteOptionsUseCase(routeRepo);
++    final publishRideUseCase = PublishRideUseCase(publishRepo);
++    final publishReturnRideUseCase = PublishReturnRideUseCase(publishRepo);
++    final ensurePublishEligibilityUseCase = EnsurePublishEligibilityUseCase(authRepo, vehicleRepo);
++
++    // Platform services
++    final ChatLauncher chatLauncher = UrlLauncherChatLauncher();
++
++    // ---------------------------------------------------------------------------
++    // PROVIDERS
++    // ---------------------------------------------------------------------------
++    return [
++      // Auth
++      ChangeNotifierProvider<AuthProvider>(
++        create: (_) => AuthProvider(authRepo),
++      ),
++
++      // Ride Search
++      ChangeNotifierProvider<RideSearchProvider>(
++        create: (_) => RideSearchProvider(searchRidesUseCase),
++      ),
++      ChangeNotifierProvider<BookingProvider>(
++        create: (_) => BookingProvider(bookRideUseCase),
++      ),
++
++      // Vehicle
++      ChangeNotifierProvider<VehicleProvider>(
++        create: (_) => VehicleProvider(vehicleRepo)..refresh(),
++      ),
++
++      // Post Ride
++      Provider<EnsurePublishEligibilityUseCase>(
++        create: (_) => ensurePublishEligibilityUseCase,
++      ),
++      ChangeNotifierProvider<PostRideDraftProvider>(
++        create: (_) => PostRideDraftProvider(
++          createDraftUseCase,
++          saveDraftUseCase,
++          getRoutesUseCase,
++        ),
++      ),
++      ChangeNotifierProvider<PostRidePublishProvider>(
++        create: (_) => PostRidePublishProvider(
++          publishRideUseCase,
++          publishReturnRideUseCase,
++        ),
++      ),
++
++      // Platform boundary services
++      Provider<ChatLauncher>(
++        create: (_) => chatLauncher,
++      ),
++    ];
++  }
++}
+--- lib/main.dart
++++ lib/main.dart
+@@ -2,117 +2,12 @@
+ import 'package:provider/provider.dart';
+ 
+ import 'app/app.dart';
+-
+-// ------------------- RIDE SEARCH -------------------
+-import 'features/ride_search/data/datasources/ride_remote_data_source.dart';
+-import 'features/ride_search/data/repositories/ride_repository_impl.dart';
+-import 'features/ride_search/domain/usecases/book_ride_usecase.dart';
+-import 'features/ride_search/domain/usecases/search_rides_usecase.dart';
+-import 'features/ride_search/presentation/provider/booking_provider.dart';
+-import 'features/ride_search/presentation/provider/ride_search_provider.dart';
+-
+-// ------------------- AUTH -------------------
+-import 'features/auth/data/repositories/auth_repository_impl.dart';
+-import 'features/auth/presentation/providers/auth_provider.dart';
+-
+-// ------------------- VEHICLE -------------------
+-import 'features/vehicle/data/repositories/vehicle_repository_memory.dart';
+-import 'features/vehicle/presentation/providers/vehicle_provider.dart';
+-
+-// ------------------- POST RIDE -------------------
+-import 'features/post_ride/data/repositories/ride_draft_repository_memory.dart';
+-import 'features/post_ride/data/repositories/route_repository_mock.dart';
+-import 'features/post_ride/data/repositories/ride_publish_repository_mock.dart';
+-
+-import 'features/post_ride/application/usecases/create_new_draft_usecase.dart';
+-import 'features/post_ride/application/usecases/save_draft_usecase.dart';
+-import 'features/post_ride/application/usecases/get_route_options_usecase.dart';
+-import 'features/post_ride/application/usecases/publish_ride_usecase.dart';
+-import 'features/post_ride/application/usecases/publish_return_ride_usecase.dart';
+-import 'features/post_ride/application/usecases/ensure_publish_eligibility_usecase.dart';
+-
+-import 'features/post_ride/presentation/providers/post_ride_draft_provider.dart';
+-import 'features/post_ride/presentation/providers/post_ride_publish_provider.dart';
++import 'di/app_di.dart';
+ 
+ void main() {
+-  // ---------------------------------------------------------------------------
+-  // DATA LAYER
+-  // ---------------------------------------------------------------------------
+-
+-  // Auth
+-  final authRepo = AuthRepositoryImpl();
+-
+-  // Ride Search
+-  final rideRemote = RideRemoteDataSource();
+-  final rideRepo = RideRepositoryImpl(rideRemote);
+-
+-  // Vehicle
+-  final vehicleRepo = VehicleRepositoryMemory();
+-
+-  // Post Ride
+-  final draftRepo = RideDraftRepositoryMemory();
+-  final routeRepo = RouteRepositoryMock();
+-  final publishRepo = RidePublishRepositoryMock();
+-
+-  // ---------------------------------------------------------------------------
+-  // USE CASES
+-  // ---------------------------------------------------------------------------
+-
+-  // Ride Search
+-  final searchRidesUseCase = SearchRidesUseCase(rideRepo);
+-  final bookRideUseCase = BookRideUseCase(rideRepo);
+-
+-  // Post Ride
+-  final createDraftUseCase = CreateNewDraftUseCase(draftRepo);
+-  final saveDraftUseCase = SaveDraftUseCase(draftRepo);
+-  final getRoutesUseCase = GetRouteOptionsUseCase(routeRepo);
+-  final publishRideUseCase = PublishRideUseCase(publishRepo);
+-  final publishReturnRideUseCase = PublishReturnRideUseCase(publishRepo);
+-  final ensurePublishEligibilityUseCase = EnsurePublishEligibilityUseCase(authRepo, vehicleRepo);
+-
+-  // ---------------------------------------------------------------------------
+-  // APP BOOT
+-  // ---------------------------------------------------------------------------
+-
+   runApp(
+     MultiProvider(
+-      providers: [
+-        // ------------------- AUTH -------------------
+-        ChangeNotifierProvider<AuthProvider>(
+-          create: (_) => AuthProvider(authRepo),
+-        ),
+-
+-        // ------------------- RIDE SEARCH -------------------
+-        ChangeNotifierProvider<RideSearchProvider>(
+-          create: (_) => RideSearchProvider(searchRidesUseCase),
+-        ),
+-        ChangeNotifierProvider<BookingProvider>(
+-          create: (_) => BookingProvider(bookRideUseCase),
+-        ),
+-
+-        // ------------------- VEHICLE -------------------
+-        ChangeNotifierProvider<VehicleProvider>(
+-          create: (_) => VehicleProvider(vehicleRepo)..refresh(),
+-        ),
+-
+-        // ------------------- POST RIDE -------------------
+-        Provider<EnsurePublishEligibilityUseCase>(
+-          create: (_) => ensurePublishEligibilityUseCase,
+-        ),
+-        ChangeNotifierProvider<PostRideDraftProvider>(
+-          create: (_) => PostRideDraftProvider(
+-            createDraftUseCase,
+-            saveDraftUseCase,
+-            getRoutesUseCase,
+-          ),
+-        ),
+-        ChangeNotifierProvider<PostRidePublishProvider>(
+-          create: (_) => PostRidePublishProvider(
+-            publishRideUseCase,
+-            publishReturnRideUseCase,
+-          ),
+-        ),
+-      ],
++      providers: AppDI.providers(),
+       child: const CarpoolApp(),
+     ),
+   );

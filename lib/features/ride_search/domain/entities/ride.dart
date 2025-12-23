@@ -1,31 +1,25 @@
+import 'driver.dart';
+
 class Ride {
   final String id;
-  final String driverName;
-  final String driverImage;
-  final double driverRating;
-  final String from;
-  final String to;
+  final String fromCity;
+  final String toCity;
   final DateTime departureTime;
   final DateTime arrivalTime;
-  final int price;
-  final int seatsAvailable;
+  final double price;
+  final int availableSeats;
+  final bool isInstantBooking;
+  final Driver driver;
 
   const Ride({
     required this.id,
-    required this.driverName,
-    required this.driverImage,
-    required this.driverRating,
-    required this.from,
-    required this.to,
+    required this.fromCity,
+    required this.toCity,
     required this.departureTime,
     required this.arrivalTime,
     required this.price,
-    required this.seatsAvailable,
+    required this.availableSeats,
+    required this.isInstantBooking,
+    required this.driver,
   });
-
-  // Helper to calculate duration
-  String get duration {
-    final diff = arrivalTime.difference(departureTime);
-    return '${diff.inHours}h ${diff.inMinutes.remainder(60)}m';
-  }
 }
