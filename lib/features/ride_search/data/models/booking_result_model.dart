@@ -1,17 +1,19 @@
 import '../../domain/entities/booking_result.dart';
 import '../../domain/entities/booking_status.dart';
 
-class BookingResultModel extends BookingResult {
+/// Data Transfer Object for booking result.
+/// Keeps data-layer JSON parsing separate from domain entities (LSP-safe).
+class BookingResultModel {
+  final BookingStatus status;
+  final String message;
+
   const BookingResultModel({
-    required BookingStatus status,
-    required String message,
-  }) : super(
-    status: status,
-    message: message,
-  );
+    required this.status,
+    required this.message,
+  });
 
   factory BookingResultModel.fromJson(Map<String, dynamic> json) {
-    final statusString = json['status'] as String;
+    final statusString = json['status'] as String? ?? 'DECLINED';
     final BookingStatus status;
     switch (statusString) {
       case 'CONFIRMED':
@@ -25,6 +27,7 @@ class BookingResultModel extends BookingResult {
         status = BookingStatus.declined;
         break;
     }
+
     return BookingResultModel(
       status: status,
       message: json['message'] as String? ?? '',
@@ -49,4 +52,11 @@ class BookingResultModel extends BookingResult {
       'message': message,
     };
   }
+
+  BookingResult toEntity() => BookingResult(status: status, message: message);
+
+  static BookingResultModel fromEntity(BookingResult r) => BookingResultModel(
+        status: r.status,
+        message: r.message,
+      );
 }

@@ -56,6 +56,13 @@ class _ReturnRidePricePageState extends State<ReturnRidePricePage> {
             final returnRideId = await publishProv.publishReturn(returnDraft);
 
             if (!mounted) return;
+
+            if (returnRideId == null) {
+              final msg = publishProv.errorMessage ?? 'Failed to publish return ride.';
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+              return;
+            }
+
             context.go('/?returnRideId=$returnRideId');
           },
           child: const Center(

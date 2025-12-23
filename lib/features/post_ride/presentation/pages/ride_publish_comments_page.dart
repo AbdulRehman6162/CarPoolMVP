@@ -69,6 +69,13 @@ class _RidePublishCommentsPageState extends State<RidePublishCommentsPage> {
             final rideId = await publishProv.publish(draft);
 
             if (!mounted) return;
+
+            if (rideId == null) {
+              final msg = publishProv.errorMessage ?? 'Failed to publish ride.';
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+              return;
+            }
+
             context.go('/post-ride/return/prompt?rideId=$rideId');
           },
           child: Column(

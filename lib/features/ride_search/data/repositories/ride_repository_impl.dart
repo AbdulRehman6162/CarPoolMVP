@@ -25,6 +25,6 @@ class RideRepositoryImpl implements RideRepository {
   @override
   Future<BookingResult> submitBooking(BookingRequest request) async {
     final resultModel = await remote.sendBooking(request);
-    return resultModel;
+    return resultModel.toEntity();
   }
 }
