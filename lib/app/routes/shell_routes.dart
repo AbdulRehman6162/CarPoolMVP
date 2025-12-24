@@ -35,6 +35,9 @@ import '../../features/post_ride/presentation/pages/vehicle_select_page.dart';
 // Other Tabs
 import '../../features/chat/presentation/pages/chat_page.dart';
 import '../../features/my_rides/presentation/pages/my_rides_page.dart';
+import '../../features/my_rides/domain/entities/my_ride.dart';
+import '../../features/my_rides/presentation/pages/archived_rides_page.dart';
+import '../../features/my_rides/presentation/pages/my_ride_details_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 
 RouteBase appShellRoute() => ShellRoute(
@@ -120,11 +123,36 @@ RouteBase appShellRoute() => ShellRoute(
         ),
 
         // 3) YOUR RIDES TAB
+GoRoute(
+  path: '/my-rides',
+  name: 'my-rides',
+  builder: (context, state) => const MyRidesPage(),
+  routes: [
+    GoRoute(
+      path: 'details',
+      name: 'my-ride-details',
+      builder: (context, state) {
+        final ride = state.extra as MyRide;
+        return MyRideDetailsPage(ride: ride);
+      },
+    ),
+    GoRoute(
+      path: 'archived',
+      name: 'archived-rides',
+      builder: (context, state) => const ArchivedRidesPage(),
+      routes: [
         GoRoute(
-          path: '/my-rides',
-          name: 'my-rides',
-          builder: (context, state) => const MyRidesPage(),
+          path: 'details',
+          name: 'archived-ride-details',
+          builder: (context, state) {
+            final ride = state.extra as MyRide;
+            return MyRideDetailsPage(ride: ride, archivedMode: true);
+          },
         ),
+      ],
+    ),
+  ],
+),
 
         // 4) CHAT TAB
         GoRoute(

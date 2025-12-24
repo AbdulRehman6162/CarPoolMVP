@@ -4,6 +4,14 @@ import 'package:provider/single_child_widget.dart';
 import '../core/platform/chat_launcher.dart';
 import '../services/url_launcher_chat_launcher.dart';
 
+// ------------------- MY RIDES -------------------
+import '../features/my_rides/data/datasources/my_rides_remote_data_source.dart';
+import '../features/my_rides/data/repositories/my_rides_repository_impl.dart';
+import '../features/my_rides/application/usecases/get_archived_rides_usecase.dart';
+import '../features/my_rides/application/usecases/get_my_ride_details_usecase.dart';
+import '../features/my_rides/application/usecases/get_my_rides_usecase.dart';
+import '../features/my_rides/presentation/providers/my_rides_provider.dart';
+
 // ------------------- RIDE SEARCH -------------------
 import '../features/ride_search/data/datasources/ride_remote_data_source.dart';
 import '../features/ride_search/data/repositories/ride_repository_impl.dart';
@@ -53,6 +61,12 @@ class AppDI {
     final draftRepo = RideDraftRepositoryMemory();
     final routeRepo = RouteRepositoryMock();
     final publishRepo = RidePublishRepositoryMock();
+final myRidesRemote = MyRidesRemoteDataSource();
+final myRidesRepo = MyRidesRepositoryImpl(myRidesRemote);
+
+final getMyRidesUseCase = GetMyRidesUseCase(myRidesRepo);
+final getArchivedRidesUseCase = GetArchivedRidesUseCase(myRidesRepo);
+final getMyRideDetailsUseCase = GetMyRideDetailsUseCase(myRidesRepo);
 
     // ---------------------------------------------------------------------------
     // USE CASES
@@ -86,6 +100,14 @@ class AppDI {
       ),
       ChangeNotifierProvider<BookingProvider>(
         create: (_) => BookingProvider(bookRideUseCase),
+ChangeNotifierProvider<MyRidesProvider>(
+  create: (_) => MyRidesProvider(
+    getMyRidesUseCase,
+    getArchivedRidesUseCase,
+    getMyRideDetailsUseCase,
+  ),
+),
+
       ),
 
       // Vehicle
