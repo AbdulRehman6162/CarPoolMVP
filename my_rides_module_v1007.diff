@@ -1,0 +1,1601 @@
+diff --git a/lib/features/my_rides/application/usecases/get_archived_rides_usecase.dart b/lib/features/my_rides/application/usecases/get_archived_rides_usecase.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/application/usecases/get_archived_rides_usecase.dart
+@@ -0,0 +1,10
+import '../../domain/entities/my_ride.dart';
+import '../../domain/repositories/my_rides_repository.dart';
+
+class GetArchivedRidesUseCase {
+  final MyRidesRepository _repo;
+
+  const GetArchivedRidesUseCase(this._repo);
+
+  Future<List<MyRide>> call() => _repo.getArchivedRides();
+}
+
+diff --git a/lib/features/my_rides/application/usecases/get_my_ride_details_usecase.dart b/lib/features/my_rides/application/usecases/get_my_ride_details_usecase.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/application/usecases/get_my_ride_details_usecase.dart
+@@ -0,0 +1,10
+import '../../domain/entities/my_ride.dart';
+import '../../domain/repositories/my_rides_repository.dart';
+
+class GetMyRideDetailsUseCase {
+  final MyRidesRepository _repo;
+
+  const GetMyRideDetailsUseCase(this._repo);
+
+  Future<MyRide?> call(String id) => _repo.getRideById(id);
+}
+
+diff --git a/lib/features/my_rides/application/usecases/get_my_rides_usecase.dart b/lib/features/my_rides/application/usecases/get_my_rides_usecase.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/application/usecases/get_my_rides_usecase.dart
+@@ -0,0 +1,13
+import '../../domain/entities/my_ride.dart';
+import '../../domain/entities/my_ride_status.dart';
+import '../../domain/repositories/my_rides_repository.dart';
+
+class GetMyRidesUseCase {
+  final MyRidesRepository _repo;
+
+  const GetMyRidesUseCase(this._repo);
+
+  Future<List<MyRide>> call({MyRideStatus? status}) {
+    return _repo.getMyRides(status: status);
+  }
+}
+
+diff --git a/lib/features/my_rides/data/datasources/my_rides_remote_data_source.dart b/lib/features/my_rides/data/datasources/my_rides_remote_data_source.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/data/datasources/my_rides_remote_data_source.dart
+@@ -0,0 +1,106
+import '../models/my_ride_model.dart';
+
+/// Mock / in-memory data source.
+/// Replace with API implementation later without changing domain/application/presentation.
+class MyRidesRemoteDataSource {
+  const MyRidesRemoteDataSource();
+
+  Future<List<MyRideModel>> fetchMyRides() async {
+    // Simulate network delay
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    return _seedRides();
+  }
+
+  Future<MyRideModel?> fetchRideDetails(String id) async {
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    final all = await fetchMyRides();
+    try {
+      return all.firstWhere((r) => r.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<MyRideModel> _seedRides() {
+    final now = DateTime.now();
+    final d1 = DateTime(now.year, now.month, now.day + 2, 6, 0);
+    final d2 = DateTime(now.year, now.month, now.day + 1, 3, 40);
+    final d3 = DateTime(now.year, now.month, now.day - 4, 9, 0);
+
+    return [
+      MyRideModel.fromJson({
+        'id': 'mr_001',
+        'departureTime': d2.toIso8601String(),
+        'arrivalTime': d2.add(const Duration(hours: 2, minutes: 20)).toIso8601String(),
+        'fromCity': 'Karachi',
+        'toCity': 'Hyderabad',
+        'fromAddress': 'Block 13, Gulshan-e-Iqbal',
+        'toAddress': 'Auto Bahn Rd, Hyderabad',
+        'role': 'passenger',
+        'status': 'upcoming',
+        'badgeLabel': 'Waiting for approval',
+        'pricePerSeat': 700,
+        'totalSeats': 3,
+        'bookedSeats': 1,
+        'driver': {'id': 'u_d1', 'name': 'Usman Ali', 'avatarUrl': null},
+        'passengers': [],
+      }),
+      MyRideModel.fromJson({
+        'id': 'mr_002',
+        'departureTime': d1.toIso8601String(),
+        'arrivalTime': d1.add(const Duration(hours: 4, minutes: 20)).toIso8601String(),
+        'fromCity': 'Karachi',
+        'toCity': 'Lahore',
+        'fromAddress': 'Saddar Town',
+        'toAddress': 'Model Town, Lahore',
+        'role': 'driver',
+        'status': 'upcoming',
+        'badgeLabel': null,
+        'pricePerSeat': 1200,
+        'totalSeats': 3,
+        'bookedSeats': 1,
+        'driver': {'id': 'u_me', 'name': 'You', 'avatarUrl': null},
+        'passengers': [
+          {'user': {'id': 'u_p1', 'name': 'Ahmed Khan', 'avatarUrl': null}, 'seatsBooked': 1},
+        ],
+      }),
+      MyRideModel.fromJson({
+        'id': 'mr_003',
+        'departureTime': d3.toIso8601String(),
+        'arrivalTime': d3.add(const Duration(hours: 5)).toIso8601String(),
+        'fromCity': 'Islamabad',
+        'toCity': 'Lahore',
+        'fromAddress': 'Blue Area',
+        'toAddress': 'Gulberg, Lahore',
+        'role': 'passenger',
+        'status': 'completed',
+        'badgeLabel': null,
+        'pricePerSeat': 900,
+        'totalSeats': 3,
+        'bookedSeats': 2,
+        'driver': {'id': 'u_d2', 'name': 'Hamza', 'avatarUrl': null},
+        'passengers': [],
+      }),
+      MyRideModel.fromJson({
+        'id': 'mr_004',
+        'departureTime': DateTime(now.year, now.month, now.day - 50, 8, 0).toIso8601String(),
+        'arrivalTime': DateTime(now.year, now.month, now.day - 50, 11, 10).toIso8601String(),
+        'fromCity': 'Karachi',
+        'toCity': 'Thatta',
+        'fromAddress': 'Clifton',
+        'toAddress': 'Makli',
+        'role': 'driver',
+        'status': 'archived',
+        'badgeLabel': null,
+        'pricePerSeat': 800,
+        'totalSeats': 4,
+        'bookedSeats': 4,
+        'driver': {'id': 'u_me', 'name': 'You', 'avatarUrl': null},
+        'passengers': [
+          {'user': {'id': 'u_p2', 'name': 'Sara', 'avatarUrl': null}, 'seatsBooked': 2},
+          {'user': {'id': 'u_p3', 'name': 'Zain', 'avatarUrl': null}, 'seatsBooked': 2},
+        ],
+      }),
+    ];
+  }
+}
+
+diff --git a/lib/features/my_rides/data/models/my_ride_model.dart b/lib/features/my_rides/data/models/my_ride_model.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/data/models/my_ride_model.dart
+@@ -0,0 +1,115
+import '../../domain/entities/my_ride.dart';
+import '../../domain/entities/my_ride_role.dart';
+import '../../domain/entities/my_ride_status.dart';
+import 'ride_passenger_model.dart';
+import 'ride_user_model.dart';
+
+class MyRideModel {
+  final String id;
+  final DateTime departureTime;
+  final DateTime arrivalTime;
+  final String fromCity;
+  final String toCity;
+  final String? fromAddress;
+  final String? toAddress;
+  final MyRideRole role;
+  final MyRideStatus status;
+  final String? badgeLabel;
+  final double pricePerSeat;
+  final int totalSeats;
+  final int bookedSeats;
+  final RideUserModel driver;
+  final List<RidePassengerModel> passengers;
+
+  const MyRideModel({
+    required this.id,
+    required this.departureTime,
+    required this.arrivalTime,
+    required this.fromCity,
+    required this.toCity,
+    this.fromAddress,
+    this.toAddress,
+    required this.role,
+    required this.status,
+    this.badgeLabel,
+    required this.pricePerSeat,
+    required this.totalSeats,
+    required this.bookedSeats,
+    required this.driver,
+    required this.passengers,
+  });
+
+  factory MyRideModel.fromJson(Map<String, dynamic> json) => MyRideModel(
+        id: json['id'] as String,
+        departureTime: DateTime.parse(json['departureTime'] as String),
+        arrivalTime: DateTime.parse(json['arrivalTime'] as String),
+        fromCity: json['fromCity'] as String,
+        toCity: json['toCity'] as String,
+        fromAddress: json['fromAddress'] as String?,
+        toAddress: json['toAddress'] as String?,
+        role: MyRideRole.values.byName(json['role'] as String),
+        status: MyRideStatus.values.byName(json['status'] as String),
+        badgeLabel: json['badgeLabel'] as String?,
+        pricePerSeat: (json['pricePerSeat'] as num).toDouble(),
+        totalSeats: (json['totalSeats'] as num).toInt(),
+        bookedSeats: (json['bookedSeats'] as num).toInt(),
+        driver: RideUserModel.fromJson(json['driver'] as Map<String, dynamic>),
+        passengers: (json['passengers'] as List<dynamic>? ?? const [])
+            .map((e) => RidePassengerModel.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'departureTime': departureTime.toIso8601String(),
+        'arrivalTime': arrivalTime.toIso8601String(),
+        'fromCity': fromCity,
+        'toCity': toCity,
+        'fromAddress': fromAddress,
+        'toAddress': toAddress,
+        'role': role.name,
+        'status': status.name,
+        'badgeLabel': badgeLabel,
+        'pricePerSeat': pricePerSeat,
+        'totalSeats': totalSeats,
+        'bookedSeats': bookedSeats,
+        'driver': driver.toJson(),
+        'passengers': passengers.map((p) => p.toJson()).toList(),
+      };
+
+  MyRide toEntity() => MyRide(
+        id: id,
+        departureTime: departureTime,
+        arrivalTime: arrivalTime,
+        fromCity: fromCity,
+        toCity: toCity,
+        fromAddress: fromAddress,
+        toAddress: toAddress,
+        role: role,
+        status: status,
+        badgeLabel: badgeLabel,
+        pricePerSeat: pricePerSeat,
+        totalSeats: totalSeats,
+        bookedSeats: bookedSeats,
+        driver: driver.toEntity(),
+        passengers: passengers.map((p) => p.toEntity()).toList(),
+      );
+
+  static MyRideModel fromEntity(MyRide r) => MyRideModel(
+        id: r.id,
+        departureTime: r.departureTime,
+        arrivalTime: r.arrivalTime,
+        fromCity: r.fromCity,
+        toCity: r.toCity,
+        fromAddress: r.fromAddress,
+        toAddress: r.toAddress,
+        role: r.role,
+        status: r.status,
+        badgeLabel: r.badgeLabel,
+        pricePerSeat: r.pricePerSeat,
+        totalSeats: r.totalSeats,
+        bookedSeats: r.bookedSeats,
+        driver: RideUserModel.fromEntity(r.driver),
+        passengers: r.passengers.map(RidePassengerModel.fromEntity).toList(),
+      );
+}
+
+diff --git a/lib/features/my_rides/data/models/ride_passenger_model.dart b/lib/features/my_rides/data/models/ride_passenger_model.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/data/models/ride_passenger_model.dart
+@@ -0,0 +1,31
+import '../../domain/entities/ride_passenger.dart';
+import 'ride_user_model.dart';
+
+class RidePassengerModel {
+  final RideUserModel user;
+  final int seatsBooked;
+
+  const RidePassengerModel({
+    required this.user,
+    required this.seatsBooked,
+  });
+
+  factory RidePassengerModel.fromJson(Map<String, dynamic> json) =>
+      RidePassengerModel(
+        user: RideUserModel.fromJson(json['user'] as Map<String, dynamic>),
+        seatsBooked: (json['seatsBooked'] as num).toInt(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'user': user.toJson(),
+        'seatsBooked': seatsBooked,
+      };
+
+  RidePassenger toEntity() =>
+      RidePassenger(user: user.toEntity(), seatsBooked: seatsBooked);
+
+  static RidePassengerModel fromEntity(RidePassenger p) => RidePassengerModel(
+        user: RideUserModel.fromEntity(p.user),
+        seatsBooked: p.seatsBooked,
+      );
+}
+
+diff --git a/lib/features/my_rides/data/models/ride_user_model.dart b/lib/features/my_rides/data/models/ride_user_model.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/data/models/ride_user_model.dart
+@@ -0,0 +1,30
+import '../../domain/entities/ride_user.dart';
+
+class RideUserModel {
+  final String id;
+  final String name;
+  final String? avatarUrl;
+
+  const RideUserModel({
+    required this.id,
+    required this.name,
+    this.avatarUrl,
+  });
+
+  factory RideUserModel.fromJson(Map<String, dynamic> json) => RideUserModel(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        avatarUrl: json['avatarUrl'] as String?,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'avatarUrl': avatarUrl,
+      };
+
+  RideUser toEntity() => RideUser(id: id, name: name, avatarUrl: avatarUrl);
+
+  static RideUserModel fromEntity(RideUser u) =>
+      RideUserModel(id: u.id, name: u.name, avatarUrl: u.avatarUrl);
+}
+
+diff --git a/lib/features/my_rides/data/repositories/my_rides_repository_impl.dart b/lib/features/my_rides/data/repositories/my_rides_repository_impl.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/data/repositories/my_rides_repository_impl.dart
+@@ -0,0 +1,39
+import '../../domain/entities/my_ride.dart';
+import '../../domain/entities/my_ride_status.dart';
+import '../../domain/repositories/my_rides_repository.dart';
+import '../datasources/my_rides_remote_data_source.dart';
+
+class MyRidesRepositoryImpl implements MyRidesRepository {
+  final MyRidesRemoteDataSource _remote;
+
+  const MyRidesRepositoryImpl(this._remote);
+
+  @override
+  Future<List<MyRide>> getMyRides({MyRideStatus? status}) async {
+    final models = await _remote.fetchMyRides();
+    final entities = models.map((m) => m.toEntity()).toList();
+
+    // filter out archived from main list by default
+    final filtered = status == null
+        ? entities.where((r) => r.status != MyRideStatus.archived).toList()
+        : entities.where((r) => r.status == status).toList();
+
+    filtered.sort((a, b) => b.departureTime.compareTo(a.departureTime));
+    return filtered;
+  }
+
+  @override
+  Future<List<MyRide>> getArchivedRides() async {
+    final models = await _remote.fetchMyRides();
+    final entities = models.map((m) => m.toEntity()).toList();
+    final archived = entities.where((r) => r.status == MyRideStatus.archived).toList();
+    archived.sort((a, b) => b.departureTime.compareTo(a.departureTime));
+    return archived;
+  }
+
+  @override
+  Future<MyRide?> getRideById(String id) async {
+    final model = await _remote.fetchRideDetails(id);
+    return model?.toEntity();
+  }
+}
+
+diff --git a/lib/features/my_rides/domain/entities/my_ride.dart b/lib/features/my_rides/domain/entities/my_ride.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/domain/entities/my_ride.dart
+@@ -0,0 +1,69
+import 'package:meta/meta.dart';
+
+import 'my_ride_role.dart';
+import 'my_ride_status.dart';
+import 'ride_passenger.dart';
+import 'ride_user.dart';
+
+@immutable
+class MyRide {
+  final String id;
+
+  // Sorting & timeline
+  final DateTime departureTime;
+  final DateTime arrivalTime;
+
+  // Route
+  final String fromCity;
+  final String toCity;
+  final String? fromAddress;
+  final String? toAddress;
+
+  // Role and state
+  final MyRideRole role;
+  final MyRideStatus status;
+
+  /// Optional UI-facing badge like "Waiting for approval".
+  final String? badgeLabel;
+
+  // Pricing / seats
+  final double pricePerSeat;
+  final int totalSeats;
+  final int bookedSeats;
+
+  // Driver & passengers
+  final RideUser driver;
+  final List<RidePassenger> passengers;
+
+  const MyRide({
+    required this.id,
+    required this.departureTime,
+    required this.arrivalTime,
+    required this.fromCity,
+    required this.toCity,
+    this.fromAddress,
+    this.toAddress,
+    required this.role,
+    required this.status,
+    this.badgeLabel,
+    required this.pricePerSeat,
+    required this.totalSeats,
+    required this.bookedSeats,
+    required this.driver,
+    required this.passengers,
+  });
+
+  Duration get duration => arrivalTime.difference(departureTime);
+
+  int get availableSeats => (totalSeats - bookedSeats).clamp(0, totalSeats);
+
+  double get bookedPercent {
+    if (totalSeats <= 0) return 0;
+    return bookedSeats / totalSeats;
+  }
+
+  bool get isArchived => status == MyRideStatus.archived;
+
+  bool get isDriver => role == MyRideRole.driver;
+  bool get isPassenger => role == MyRideRole.passenger;
+}
+
+diff --git a/lib/features/my_rides/domain/entities/my_ride_role.dart b/lib/features/my_rides/domain/entities/my_ride_role.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/domain/entities/my_ride_role.dart
+@@ -0,0 +1,1
+enum MyRideRole { driver, passenger }
+
+diff --git a/lib/features/my_rides/domain/entities/my_ride_status.dart b/lib/features/my_rides/domain/entities/my_ride_status.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/domain/entities/my_ride_status.dart
+@@ -0,0 +1,5
+enum MyRideStatus {
+  upcoming,
+  completed,
+  archived,
+}
+
+diff --git a/lib/features/my_rides/domain/entities/ride_passenger.dart b/lib/features/my_rides/domain/entities/ride_passenger.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/domain/entities/ride_passenger.dart
+@@ -0,0 +1,14
+import 'package:meta/meta.dart';
+
+import 'ride_user.dart';
+
+@immutable
+class RidePassenger {
+  final RideUser user;
+  final int seatsBooked;
+
+  const RidePassenger({
+    required this.user,
+    required this.seatsBooked,
+  });
+}
+
+diff --git a/lib/features/my_rides/domain/entities/ride_user.dart b/lib/features/my_rides/domain/entities/ride_user.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/domain/entities/ride_user.dart
+@@ -0,0 +1,14
+import 'package:meta/meta.dart';
+
+@immutable
+class RideUser {
+  final String id;
+  final String name;
+  final String? avatarUrl;
+
+  const RideUser({
+    required this.id,
+    required this.name,
+    this.avatarUrl,
+  });
+}
+
+diff --git a/lib/features/my_rides/domain/repositories/my_rides_repository.dart b/lib/features/my_rides/domain/repositories/my_rides_repository.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/domain/repositories/my_rides_repository.dart
+@@ -0,0 +1,10
+import '../entities/my_ride.dart';
+import '../entities/my_ride_status.dart';
+
+abstract class MyRidesRepository {
+  Future<List<MyRide>> getMyRides({MyRideStatus? status});
+
+  Future<List<MyRide>> getArchivedRides();
+
+  Future<MyRide?> getRideById(String id);
+}
+
+diff --git a/lib/features/my_rides/presentation/pages/archived_rides_page.dart b/lib/features/my_rides/presentation/pages/archived_rides_page.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/presentation/pages/archived_rides_page.dart
+@@ -0,0 +1,71
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+import '../../../auth/presentation/providers/auth_provider.dart';
+
+import '../../domain/entities/my_ride.dart';
+import '../providers/my_rides_provider.dart';
+import '../widgets/my_ride_card.dart';
+
+class ArchivedRidesPage extends StatefulWidget {
+  const ArchivedRidesPage({super.key});
+
+  @override
+  State<ArchivedRidesPage> createState() => _ArchivedRidesPageState();
+}
+
+class _ArchivedRidesPageState extends State<ArchivedRidesPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<MyRidesProvider>().loadArchived();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+
+    if (!auth.isLoggedIn) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Archived rides')),
+        body: Center(
+          child: FilledButton(
+            onPressed: () => context.go('/login?from=/my-rides/archived'),
+            child: const Text('Log in'),
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Archived rides')),
+      body: Consumer<MyRidesProvider>(
+        builder: (context, prov, _) {
+          if (prov.loading) return const Center(child: CircularProgressIndicator());
+          if (prov.error != null) return Center(child: Text(prov.error!));
+
+          final rides = prov.archivedRides;
+          if (rides.isEmpty) {
+            return const Center(child: Text('No archived rides.'));
+          }
+
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: rides.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, i) {
+              final MyRide r = rides[i];
+              return MyRideCard(
+                ride: r,
+                onTap: () => context.go('/my-rides/archived/details', extra: r),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+diff --git a/lib/features/my_rides/presentation/pages/my_ride_details_page.dart b/lib/features/my_rides/presentation/pages/my_ride_details_page.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/presentation/pages/my_ride_details_page.dart
+@@ -0,0 +1,483
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+import '../../../auth/presentation/providers/auth_provider.dart';
+
+import '../../../../core/platform/chat_launcher.dart';
+import '../../domain/entities/my_ride.dart';
+
+class MyRideDetailsPage extends StatelessWidget {
+  const MyRideDetailsPage({
+    super.key,
+    required this.ride,
+    required this.archived,
+  });
+
+  final MyRide ride;
+  final bool archived;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    if (!auth.isLoggedIn) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Ride Details')),
+        body: Center(
+          child: FilledButton(
+            onPressed: () => context.go('/login?from=/my-rides'),
+            child: const Text('Log in'),
+          ),
+        ),
+      );
+    }
+
+    final loc = MaterialLocalizations.of(context);
+    final date = loc.formatFullDate(ride.departureTime);
+    final depart = loc.formatTimeOfDay(TimeOfDay.fromDateTime(ride.departureTime));
+    final arrive = loc.formatTimeOfDay(TimeOfDay.fromDateTime(ride.arrivalTime));
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(archived ? 'Archived Ride Details' : 'Ride Details'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _HeaderCard(
+            roleLabel: ride.isDriver ? 'As driver' : 'As passenger',
+            price: ride.pricePerSeat,
+            archived: archived,
+          ),
+          const SizedBox(height: 12),
+          _RouteCard(
+            dateLabel: date,
+            depart: depart,
+            arrive: arrive,
+            fromCity: ride.fromCity,
+            toCity: ride.toCity,
+            fromAddress: ride.fromAddress,
+            toAddress: ride.toAddress,
+          ),
+          const SizedBox(height: 12),
+          if (ride.isDriver) ...[
+            _DriverSeatCard(ride: ride),
+            const SizedBox(height: 12),
+            _BookedPassengersCard(ride: ride),
+            const SizedBox(height: 12),
+            _DriverActions(archived: archived),
+          ] else ...[
+            _DriverInfoCard(driverName: ride.driver.name),
+            const SizedBox(height: 12),
+            _PassengerActions(archived: archived),
+          ],
+        ],
+      ),
+      bottomNavigationBar: archived ? null : _BottomCta(ride: ride),
+    );
+  }
+}
+
+class _HeaderCard extends StatelessWidget {
+  const _HeaderCard({
+    required this.roleLabel,
+    required this.price,
+    required this.archived,
+  });
+
+  final String roleLabel;
+  final double price;
+  final bool archived;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    if (!auth.isLoggedIn) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Ride Details')),
+        body: Center(
+          child: FilledButton(
+            onPressed: () => context.go('/login?from=/my-rides'),
+            child: const Text('Log in'),
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Icon(roleLabel.contains('driver') ? Icons.directions_car : Icons.person),
+                const SizedBox(width: 8),
+                Text(roleLabel, style: const TextStyle(fontWeight: FontWeight.w600)),
+                if (archived) ...[
+                  const SizedBox(width: 8),
+                  const Icon(Icons.archive, size: 18),
+                ],
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('PKR ${price.toStringAsFixed(0)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const Text('per seat', style: TextStyle(fontSize: 12)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RouteCard extends StatelessWidget {
+  const _RouteCard({
+    required this.dateLabel,
+    required this.depart,
+    required this.arrive,
+    required this.fromCity,
+    required this.toCity,
+    required this.fromAddress,
+    required this.toAddress,
+  });
+
+  final String dateLabel;
+  final String depart;
+  final String arrive;
+  final String fromCity;
+  final String toCity;
+  final String? fromAddress;
+  final String? toAddress;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    if (!auth.isLoggedIn) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Ride Details')),
+        body: Center(
+          child: FilledButton(
+            onPressed: () => context.go('/login?from=/my-rides'),
+            child: const Text('Log in'),
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(dateLabel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                SizedBox(
+                  width: 72,
+                  child: Column(
+                    children: [
+                      Text(depart),
+                      const SizedBox(height: 4),
+                      const Icon(Icons.more_vert, size: 16),
+                      const SizedBox(height: 4),
+                      Text(arrive),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(fromCity, style: const TextStyle(fontWeight: FontWeight.w700)),
+                      if (fromAddress != null)
+                        Text(fromAddress!, style: Theme.of(context).textTheme.bodySmall),
+                      const SizedBox(height: 10),
+                      Text(toCity, style: const TextStyle(fontWeight: FontWeight.w700)),
+                      if (toAddress != null)
+                        Text(toAddress!, style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DriverSeatCard extends StatelessWidget {
+  const _DriverSeatCard({required this.ride});
+
+  final MyRide ride;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    if (!auth.isLoggedIn) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Ride Details')),
+        body: Center(
+          child: FilledButton(
+            onPressed: () => context.go('/login?from=/my-rides'),
+            child: const Text('Log in'),
+          ),
+        ),
+      );
+    }
+
+    final available = ride.availableSeats;
+    final booked = ride.bookedSeats;
+    final total = ride.totalSeats;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('$available seats available', style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            Text('$booked/$total seats booked', style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 10),
+            LinearProgressIndicator(value: ride.bookedPercent),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BookedPassengersCard extends StatelessWidget {
+  const _BookedPassengersCard({required this.ride});
+  final MyRide ride;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    if (!auth.isLoggedIn) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Ride Details')),
+        body: Center(
+          child: FilledButton(
+            onPressed: () => context.go('/login?from=/my-rides'),
+            child: const Text('Log in'),
+          ),
+        ),
+      );
+    }
+
+    final count = ride.passengers.length;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.groups),
+                const SizedBox(width: 8),
+                Text('$count Passenger booked', style: const TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (count == 0)
+              const Text('No passengers yet.')
+            else
+              ...ride.passengers.map(
+                (p) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(child: Text(p.user.name.isNotEmpty ? p.user.name[0] : '?')),
+                  title: Text(p.user.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text('${p.seatsBooked} seat(s)'),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DriverInfoCard extends StatelessWidget {
+  const _DriverInfoCard({required this.driverName});
+  final String driverName;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    if (!auth.isLoggedIn) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Ride Details')),
+        body: Center(
+          child: FilledButton(
+            onPressed: () => context.go('/login?from=/my-rides'),
+            child: const Text('Log in'),
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            CircleAvatar(child: Text(driverName.isNotEmpty ? driverName[0] : '?')),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(driverName, style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DriverActions extends StatelessWidget {
+  const _DriverActions({required this.archived});
+  final bool archived;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    if (!auth.isLoggedIn) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Ride Details')),
+        body: Center(
+          child: FilledButton(
+            onPressed: () => context.go('/login?from=/my-rides'),
+            child: const Text('Log in'),
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      child: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.message),
+            title: const Text('Contact Passengers'),
+            onTap: archived
+                ? null
+                : () async {
+                    final launcher = context.read<ChatLauncher>();
+                    await launcher.openWhatsApp(phone: '923001234567', message: 'Hello!');
+                  },
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.checklist),
+            title: const Text('Manage Booking Requests'),
+            onTap: archived ? null : () {},
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.map),
+            title: const Text('View Route'),
+            onTap: () {},
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.cancel),
+            title: const Text('Cancel Ride'),
+            onTap: archived ? null : () {},
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PassengerActions extends StatelessWidget {
+  const _PassengerActions({required this.archived});
+  final bool archived;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    if (!auth.isLoggedIn) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Ride Details')),
+        body: Center(
+          child: FilledButton(
+            onPressed: () => context.go('/login?from=/my-rides'),
+            child: const Text('Log in'),
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      child: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.message),
+            title: const Text('Contact Driver'),
+            onTap: archived
+                ? null
+                : () async {
+                    final launcher = context.read<ChatLauncher>();
+                    await launcher.openWhatsApp(phone: '923001234567', message: 'Hello!');
+                  },
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.cancel),
+            title: const Text('Cancel booking'),
+            onTap: archived ? null : () {},
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BottomCta extends StatelessWidget {
+  const _BottomCta({required this.ride});
+  final MyRide ride;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    if (!auth.isLoggedIn) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Ride Details')),
+        body: Center(
+          child: FilledButton(
+            onPressed: () => context.go('/login?from=/my-rides'),
+            child: const Text('Log in'),
+          ),
+        ),
+      );
+    }
+
+    final label = ride.isDriver ? 'Manage booking requests' : 'Contact driver';
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: FilledButton(
+          onPressed: () async {
+            final launcher = context.read<ChatLauncher>();
+            await launcher.openWhatsApp(phone: '923001234567', message: 'Hello!');
+          },
+          child: Text(label),
+        ),
+      ),
+    );
+  }
+}
+
+diff --git a/lib/features/my_rides/presentation/providers/my_rides_provider.dart b/lib/features/my_rides/presentation/providers/my_rides_provider.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/presentation/providers/my_rides_provider.dart
+@@ -0,0 +1,58
+import 'package:flutter/foundation.dart';
+
+import '../../application/usecases/get_archived_rides_usecase.dart';
+import '../../application/usecases/get_my_rides_usecase.dart';
+import '../../domain/entities/my_ride.dart';
+import '../../domain/entities/my_ride_status.dart';
+
+class MyRidesProvider extends ChangeNotifier {
+  final GetMyRidesUseCase _getMyRides;
+  final GetArchivedRidesUseCase _getArchived;
+
+  MyRidesProvider(this._getMyRides, this._getArchived);
+
+  bool _loading = false;
+  String? _error;
+  List<MyRide> _rides = const [];
+  List<MyRide> _archived = const [];
+
+  bool get loading => _loading;
+  String? get error => _error;
+
+  List<MyRide> get rides => _rides;
+  List<MyRide> get archivedRides => _archived;
+
+  Future<void> load({MyRideStatus? status}) async {
+    _setLoading(true);
+    _setError(null);
+    try {
+      _rides = await _getMyRides(status: status);
+    } catch (e) {
+      _setError(e.toString());
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<void> loadArchived() async {
+    _setLoading(true);
+    _setError(null);
+    try {
+      _archived = await _getArchived();
+    } catch (e) {
+      _setError(e.toString());
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  void _setLoading(bool v) {
+    _loading = v;
+    notifyListeners();
+  }
+
+  void _setError(String? msg) {
+    _error = msg;
+    notifyListeners();
+  }
+}
+
+diff --git a/lib/features/my_rides/presentation/widgets/my_ride_card.dart b/lib/features/my_rides/presentation/widgets/my_ride_card.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/my_rides/presentation/widgets/my_ride_card.dart
+@@ -0,0 +1,136
+import 'package:flutter/material.dart';
+
+import '../../domain/entities/my_ride.dart';
+
+class MyRideCard extends StatelessWidget {
+  const MyRideCard({
+    super.key,
+    required this.ride,
+    required this.onTap,
+  });
+
+  final MyRide ride;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = MaterialLocalizations.of(context);
+    final dateLabel = loc.formatMediumDate(ride.departureTime);
+    final depart = loc.formatTimeOfDay(TimeOfDay.fromDateTime(ride.departureTime));
+    final arrive = loc.formatTimeOfDay(TimeOfDay.fromDateTime(ride.arrivalTime));
+
+    final hours = ride.duration.inHours;
+    final mins = ride.duration.inMinutes.remainder(60);
+    final durationLabel = '${hours}h${mins.toString().padLeft(2, '0')}';
+
+    final roleIcon = ride.isDriver ? Icons.directions_car : Icons.person;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Card(
+        elevation: 1,
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (ride.badgeLabel != null) ...[
+                Row(
+                  children: [
+                    const Icon(Icons.schedule, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      ride.badgeLabel!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    dateLabel,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  Icon(roleIcon),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  SizedBox(
+                    width: 64,
+                    child: Column(
+                      children: [
+                        Text(depart, style: Theme.of(context).textTheme.bodySmall),
+                        const SizedBox(height: 2),
+                        Text(durationLabel, style: Theme.of(context).textTheme.bodySmall),
+                        const SizedBox(height: 2),
+                        Text(arrive, style: Theme.of(context).textTheme.bodySmall),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(ride.fromCity, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
+                        Text(ride.toCity, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _RoleChip(ride: ride),
+                  Text(
+                    'PKR ${ride.pricePerSeat.toStringAsFixed(0)}',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoleChip extends StatelessWidget {
+  const _RoleChip({required this.ride});
+
+  final MyRide ride;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = ride.isDriver ? 'As driver' : 'As passenger';
+    final icon = ride.isDriver ? Icons.directions_car : Icons.person;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Theme.of(context).dividerColor),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16),
+          const SizedBox(width: 6),
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
+}
+
+diff --git a/lib/app/routes/shell_routes.dart b/lib/app/routes/shell_routes.dart
+--- a/lib/app/routes/shell_routes.dart
++++ b/lib/app/routes/shell_routes.dart
+@@ -35,6 +35,10 @@
+ // Other Tabs
+ import '../../features/chat/presentation/pages/chat_page.dart';
+ import '../../features/my_rides/presentation/pages/my_rides_page.dart';
++import '../../features/my_rides/presentation/pages/archived_rides_page.dart';
++import '../../features/my_rides/presentation/pages/my_ride_details_page.dart';
++import '../../features/my_rides/domain/entities/my_ride.dart';
++
+ import '../../features/profile/presentation/pages/profile_page.dart';
+ 
+ RouteBase appShellRoute() => ShellRoute(
+@@ -120,11 +124,36 @@
+         ),
+ 
+         // 3) YOUR RIDES TAB
++GoRoute(
++  path: '/my-rides',
++  name: 'my-rides',
++  builder: (context, state) => const MyRidesPage(),
++  routes: [
++    GoRoute(
++      path: 'details',
++      name: 'my-ride-details',
++      builder: (context, state) {
++        final ride = state.extra as MyRide;
++        return MyRideDetailsPage(ride: ride, archived: false);
++      },
++    ),
++    GoRoute(
++      path: 'archived',
++      name: 'archived-rides',
++      builder: (context, state) => const ArchivedRidesPage(),
++      routes: [
+         GoRoute(
+-          path: '/my-rides',
+-          name: 'my-rides',
+-          builder: (context, state) => const MyRidesPage(),
++          path: 'details',
++          name: 'archived-ride-details',
++          builder: (context, state) {
++            final ride = state.extra as MyRide;
++            return MyRideDetailsPage(ride: ride, archived: true);
++          },
+         ),
++      ],
++    ),
++  ],
++),
+ 
+         // 4) CHAT TAB
+         GoRoute(
+
+diff --git a/lib/di/app_di.dart b/lib/di/app_di.dart
+--- a/lib/di/app_di.dart
++++ b/lib/di/app_di.dart
+@@ -19,6 +19,14 @@
+ // ------------------- VEHICLE -------------------
+ import '../features/vehicle/data/repositories/vehicle_repository_memory.dart';
+ import '../features/vehicle/presentation/providers/vehicle_provider.dart';
++
++
++// ------------------- MY RIDES -------------------
++import '../features/my_rides/data/datasources/my_rides_remote_data_source.dart';
++import '../features/my_rides/data/repositories/my_rides_repository_impl.dart';
++import '../features/my_rides/application/usecases/get_archived_rides_usecase.dart';
++import '../features/my_rides/application/usecases/get_my_rides_usecase.dart';
++import '../features/my_rides/presentation/providers/my_rides_provider.dart';
+ 
+ // ------------------- POST RIDE -------------------
+ import '../features/post_ride/data/repositories/ride_draft_repository_memory.dart';
+@@ -53,6 +61,9 @@
+     final draftRepo = RideDraftRepositoryMemory();
+     final routeRepo = RouteRepositoryMock();
+     final publishRepo = RidePublishRepositoryMock();
++final myRidesRemote = MyRidesRemoteDataSource();
++final myRidesRepo = MyRidesRepositoryImpl(myRidesRemote);
++
+ 
+     // ---------------------------------------------------------------------------
+     // USE CASES
+@@ -60,6 +71,9 @@
+ 
+     final searchRidesUseCase = SearchRidesUseCase(rideRepo);
+     final bookRideUseCase = BookRideUseCase(rideRepo);
++final getMyRidesUseCase = GetMyRidesUseCase(myRidesRepo);
++final getArchivedRidesUseCase = GetArchivedRidesUseCase(myRidesRepo);
++
+ 
+     final createDraftUseCase = CreateNewDraftUseCase(draftRepo);
+     final saveDraftUseCase = SaveDraftUseCase(draftRepo);
+@@ -93,6 +107,11 @@
+         create: (_) => VehicleProvider(vehicleRepo)..refresh(),
+       ),
+ 
++// My Rides
++ChangeNotifierProvider<MyRidesProvider>(
++  create: (_) => MyRidesProvider(getMyRidesUseCase, getArchivedRidesUseCase),
++),
++
+       // Post Ride
+       Provider<EnsurePublishEligibilityUseCase>(
+         create: (_) => ensurePublishEligibilityUseCase,
+
+diff --git a/lib/features/my_rides/presentation/pages/my_rides_page.dart b/lib/features/my_rides/presentation/pages/my_rides_page.dart
+--- a/lib/features/my_rides/presentation/pages/my_rides_page.dart
++++ b/lib/features/my_rides/presentation/pages/my_rides_page.dart
+@@ -1,11 +1,50 @@
+ import 'package:flutter/material.dart';
++import 'package:go_router/go_router.dart';
+ import 'package:provider/provider.dart';
+-import 'package:go_router/go_router.dart';
+ 
+ import '../../../auth/presentation/providers/auth_provider.dart';
++import '../../domain/entities/my_ride.dart';
++import '../../domain/entities/my_ride_status.dart';
++import '../providers/my_rides_provider.dart';
++import '../widgets/my_ride_card.dart';
+ 
+-class MyRidesPage extends StatelessWidget {
++class MyRidesPage extends StatefulWidget {
+   const MyRidesPage({super.key});
++
++  @override
++  State<MyRidesPage> createState() => _MyRidesPageState();
++}
++
++class _MyRidesPageState extends State<MyRidesPage> with SingleTickerProviderStateMixin {
++  late final TabController _tab;
++
++  @override
++  void initState() {
++    super.initState();
++    _tab = TabController(length: 3, vsync: this);
++    WidgetsBinding.instance.addPostFrameCallback((_) {
++      context.read<MyRidesProvider>().load(status: null);
++    });
++  }
++
++  @override
++  void dispose() {
++    _tab.dispose();
++    super.dispose();
++  }
++
++  MyRideStatus? _statusForIndex(int i) {
++    switch (i) {
++      case 0:
++        return null; // All (excluding archived)
++      case 1:
++        return MyRideStatus.upcoming;
++      case 2:
++        return MyRideStatus.completed;
++      default:
++        return null;
++    }
++  }
+ 
+   @override
+   Widget build(BuildContext context) {
+@@ -16,15 +55,15 @@
+         appBar: AppBar(title: const Text('Your rides')),
+         body: Center(
+           child: Padding(
+-            padding: const EdgeInsets.all(24),
++            padding: const EdgeInsets.all(16),
+             child: Column(
+-              mainAxisSize: MainAxisSize.min,
++              mainAxisAlignment: MainAxisAlignment.center,
+               children: [
+-                const Text('Please login to view your rides.'),
++                const Text('Please log in to view your rides.'),
+                 const SizedBox(height: 12),
+-                ElevatedButton(
++                FilledButton(
+                   onPressed: () => context.go('/login?from=/my-rides'),
+-                  child: const Text('Login'),
++                  child: const Text('Log in'),
+                 ),
+               ],
+             ),
+@@ -33,9 +72,91 @@
+       );
+     }
+ 
+-    return  Scaffold(
+-      appBar: AppBar(title: Text('Your rides')),
+-      body: Center(child: Text('TODO: Implement My Rides list (driver & passenger).')),
++    return DefaultTabController(
++      length: 3,
++      child: Scaffold(
++        appBar: AppBar(
++          title: const Text('Your rides'),
++          bottom: TabBar(
++            controller: _tab,
++            onTap: (i) => context.read<MyRidesProvider>().load(status: _statusForIndex(i)),
++            tabs: const [
++              Tab(text: 'All rides'),
++              Tab(text: 'Upcoming'),
++              Tab(text: 'Completed'),
++            ],
++          ),
++        ),
++        body: Consumer<MyRidesProvider>(
++          builder: (context, prov, _) {
++            if (prov.loading) {
++              return const Center(child: CircularProgressIndicator());
++            }
++            if (prov.error != null) {
++              return Center(child: Text(prov.error!));
++            }
++
++            final rides = prov.rides;
++
++            if (rides.isEmpty) {
++              return _EmptyState(
++                onArchived: () => context.go('/my-rides/archived'),
++              );
++            }
++
++            return ListView(
++              padding: const EdgeInsets.all(16),
++              children: [
++                ...rides.map((MyRide r) => Padding(
++                      padding: const EdgeInsets.only(bottom: 12),
++                      child: MyRideCard(
++                        ride: r,
++                        onTap: () => context.go('/my-rides/details', extra: r),
++                      ),
++                    )),
++                const SizedBox(height: 8),
++                _ArchivedButton(
++                  onTap: () => context.go('/my-rides/archived'),
++                ),
++              ],
++            );
++          },
++        ),
++      ),
+     );
+   }
+ }
++
++class _ArchivedButton extends StatelessWidget {
++  const _ArchivedButton({required this.onTap});
++  final VoidCallback onTap;
++
++  @override
++  Widget build(BuildContext context) {
++    return ListTile(
++      onTap: onTap,
++      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
++      tileColor: Theme.of(context).cardColor,
++      title: const Text('Archived rides', style: TextStyle(fontWeight: FontWeight.w600)),
++      trailing: const Icon(Icons.chevron_right),
++    );
++  }
++}
++
++class _EmptyState extends StatelessWidget {
++  const _EmptyState({required this.onArchived});
++  final VoidCallback onArchived;
++
++  @override
++  Widget build(BuildContext context) {
++    return ListView(
++      padding: const EdgeInsets.all(16),
++      children: [
++        const SizedBox(height: 32),
++        const Center(child: Text('No rides yet.')),
++        const SizedBox(height: 16),
++        _ArchivedButton(onTap: onArchived),
++      ],
++    );
++  }
++}
