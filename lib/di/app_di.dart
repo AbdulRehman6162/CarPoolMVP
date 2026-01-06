@@ -100,14 +100,14 @@ final getMyRideDetailsUseCase = GetMyRideDetailsUseCase(myRidesRepo);
       ),
       ChangeNotifierProvider<BookingProvider>(
         create: (_) => BookingProvider(bookRideUseCase),
-ChangeNotifierProvider<MyRidesProvider>(
-  create: (_) => MyRidesProvider(
-    getMyRidesUseCase,
-    getArchivedRidesUseCase,
-    getMyRideDetailsUseCase,
-  ),
-),
+      ),
 
+      ChangeNotifierProvider<MyRidesProvider>(
+        create: (_) => MyRidesProvider(
+          getMyRidesUseCase,
+          getArchivedRidesUseCase,
+          getMyRideDetailsUseCase,
+        ),
       ),
 
       // Vehicle

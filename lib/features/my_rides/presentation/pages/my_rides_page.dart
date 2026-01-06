@@ -131,7 +131,7 @@ class _RideList extends StatelessWidget {
           final ride = rides[index];
           return MyRideCard(
             ride: ride,
-            onTap: () => context.go('/my-rides/details', extra: ride),
+            onTap: () => context.go('/my-rides/details/${ride.id}'),
           );
         },
       ),

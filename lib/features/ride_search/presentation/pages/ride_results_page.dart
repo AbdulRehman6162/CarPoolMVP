@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/design_system/tokens.dart';
 import '../../domain/entities/ride.dart';
 import '../provider/ride_search_provider.dart';
-import 'ride_details_page.dart';
 
 class RideResultsPage extends StatelessWidget {
   const RideResultsPage({super.key});

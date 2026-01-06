@@ -1,4 +1,3 @@
-import '../core/platform/chat_launcher.dart';
 import 'url_launcher_chat_launcher.dart';
 
 @Deprecated('Use ChatLauncher via dependency injection (UrlLauncherChatLauncher).')

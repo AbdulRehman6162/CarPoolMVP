@@ -20,11 +20,20 @@ class MyRidesProvider extends ChangeNotifier {
   List<MyRide> _rides = const [];
   List<MyRide> _archived = const [];
 
+  // Details state (kept separate from list state to avoid cross-screen side effects)
+  bool _detailsLoading = false;
+  String? _detailsError;
+  MyRide? _currentRideDetails;
+
   bool get loading => _loading;
   String? get error => _error;
 
   List<MyRide> get rides => _rides;
   List<MyRide> get archivedRides => _archived;
+
+  bool get detailsLoading => _detailsLoading;
+  String? get detailsError => _detailsError;
+  MyRide? get currentRideDetails => _currentRideDetails;
 
   Future<void> loadMyRides() async {
     _setLoading(true);
@@ -50,14 +59,20 @@ class MyRidesProvider extends ChangeNotifier {
     }
   }
 
-  Future<MyRide?> getDetails(String rideId) async {
-    _error = null;
+  /// Loads ride details by id (deep-link safe).
+  Future<void> loadDetails(String rideId) async {
+    _detailsLoading = true;
+    _detailsError = null;
+    _currentRideDetails = null;
+    notifyListeners();
+
     try {
-      return await _getDetails(rideId);
+      _currentRideDetails = await _getDetails(rideId);
     } catch (e) {
-      _error = e.toString();
+      _detailsError = e.toString();
+    } finally {
+      _detailsLoading = false;
       notifyListeners();
-      return null;
     }
   }
 

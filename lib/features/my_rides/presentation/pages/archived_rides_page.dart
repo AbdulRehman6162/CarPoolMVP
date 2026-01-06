@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../domain/entities/my_ride.dart';
 import '../providers/my_rides_provider.dart';
 import '../widgets/my_ride_card.dart';
 
@@ -46,7 +45,7 @@ class _ArchivedRidesPageState extends State<ArchivedRidesPage> {
               final ride = rides[index];
               return MyRideCard(
                 ride: ride,
-                onTap: () => context.go('/my-rides/archived/details', extra: ride),
+                onTap: () => context.go('/my-rides/archived/details/${ride.id}'),
               );
             },
           );

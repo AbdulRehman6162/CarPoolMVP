@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/app_shell_scaffold.dart';
@@ -35,9 +36,8 @@ import '../../features/post_ride/presentation/pages/vehicle_select_page.dart';
 // Other Tabs
 import '../../features/chat/presentation/pages/chat_page.dart';
 import '../../features/my_rides/presentation/pages/my_rides_page.dart';
-import '../../features/my_rides/domain/entities/my_ride.dart';
 import '../../features/my_rides/presentation/pages/archived_rides_page.dart';
-import '../../features/my_rides/presentation/pages/my_ride_details_page.dart';
+import '../../features/my_rides/presentation/pages/my_ride_details_loader_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 
 RouteBase appShellRoute() => ShellRoute(
@@ -65,10 +65,7 @@ RouteBase appShellRoute() => ShellRoute(
             GoRoute(
               path: 'booking-summary',
               name: 'booking-summary',
-              builder: (context, state) {
-                final ride = state.extra as Ride;
-                return BookingSummaryPage(ride: ride);
-              },
+              builder: (context, state) => const BookingSummaryPage(),
             ),
             GoRoute(
               path: 'booking-result',
@@ -129,11 +126,16 @@ GoRoute(
   builder: (context, state) => const MyRidesPage(),
   routes: [
     GoRoute(
-      path: 'details',
+      path: 'details/:rideId',
       name: 'my-ride-details',
       builder: (context, state) {
-        final ride = state.extra as MyRide;
-        return MyRideDetailsPage(ride: ride);
+        final rideId = state.pathParameters['rideId'];
+        if (rideId == null || rideId.isEmpty) {
+          return const Scaffold(
+            body: Center(child: Text('Missing ride id.')),
+          );
+        }
+        return MyRideDetailsLoaderPage(rideId: rideId);
       },
     ),
     GoRoute(
@@ -142,11 +144,19 @@ GoRoute(
       builder: (context, state) => const ArchivedRidesPage(),
       routes: [
         GoRoute(
-          path: 'details',
+          path: 'details/:rideId',
           name: 'archived-ride-details',
           builder: (context, state) {
-            final ride = state.extra as MyRide;
-            return MyRideDetailsPage(ride: ride, archivedMode: true);
+            final rideId = state.pathParameters['rideId'];
+            if (rideId == null || rideId.isEmpty) {
+              return const Scaffold(
+                body: Center(child: Text('Missing ride id.')),
+              );
+            }
+            return MyRideDetailsLoaderPage(
+              rideId: rideId,
+              archivedMode: true,
+            );
           },
         ),
       ],
@@ -154,7 +164,8 @@ GoRoute(
   ],
 ),
 
-        // 4) CHAT TAB
+// 4) CHAT TAB
+
         GoRoute(
           path: '/chat',
           name: 'chat',
