@@ -5,7 +5,9 @@ import '../../domain/entities/booking_result.dart';
 import '../../domain/entities/booking_status.dart';
 import '../../domain/entities/passenger.dart';
 import '../../domain/entities/ride.dart';
-import '../../domain/usecases/book_ride_usecase.dart';
+import '../../application/usecases/book_ride_usecase.dart';
+import '../../../../core/error/failure.dart';
+import '../../../../core/error/failure_mapper.dart';
 
 class BookingProvider extends ChangeNotifier {
   final BookRideUseCase bookRideUseCase;
@@ -19,15 +21,15 @@ class BookingProvider extends ChangeNotifier {
 
   BookingResult? _result;
   bool _isSubmitting = false;
-  String? _errorMessage;
-
-  Ride? get ride => _ride;
+  Failure? _failure;
+Ride? get ride => _ride;
   Passenger? get passenger => _passenger;
   String get comment => _comment;
   int get seats => _seats;
   BookingResult? get result => _result;
   bool get isSubmitting => _isSubmitting;
-  String? get errorMessage => _errorMessage;
+  String? get errorMessage => _failure?.userMessage;
+  Failure? get failure => _failure;
 
   void startBooking({
     required Ride ride,
@@ -39,7 +41,7 @@ class BookingProvider extends ChangeNotifier {
     _seats = seats;
     _comment = '';
     _result = null;
-    _errorMessage = null;
+    _failure = null;
     notifyListeners();
   }
 
@@ -73,7 +75,7 @@ class BookingProvider extends ChangeNotifier {
     }
 
     _isSubmitting = true;
-    _errorMessage = null;
+    _failure = null;
     notifyListeners();
 
     final request = BookingRequest(
@@ -87,7 +89,7 @@ class BookingProvider extends ChangeNotifier {
     try {
       _result = await bookRideUseCase(request);
     } catch (e) {
-      _errorMessage = e.toString();
+      _failure = FailureMapper.from(e);
     } finally {
       _isSubmitting = false;
       notifyListeners();

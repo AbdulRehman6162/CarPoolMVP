@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../../application/usecases/publish_return_ride_usecase.dart';
 import '../../application/usecases/publish_ride_usecase.dart';
 import '../../domain/entities/ride_draft.dart';
+import '../../../../core/error/failure.dart';
+import '../../../../core/error/failure_mapper.dart';
 
 class PostRidePublishProvider extends ChangeNotifier {
   final PublishRideUseCase _publishRide;
@@ -12,11 +14,11 @@ class PostRidePublishProvider extends ChangeNotifier {
 
   bool _loading = false;
   String? _lastPublishedRideId;
-  String? _errorMessage;
-
-  bool get loading => _loading;
+  Failure? _failure;
+bool get loading => _loading;
   String? get lastPublishedRideId => _lastPublishedRideId;
-  String? get errorMessage => _errorMessage;
+  String? get errorMessage => _failure?.userMessage;
+  Failure? get failure => _failure;
 
   void _setLoading(bool value) {
     _loading = value;

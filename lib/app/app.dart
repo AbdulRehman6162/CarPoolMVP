@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/design_system/theme.dart';
-import '../features/auth/presentation/providers/auth_provider.dart';
+import '../core/session/session_provider.dart';
 import 'router.dart';
 
 class CarpoolApp extends StatefulWidget {
@@ -23,8 +23,8 @@ class _CarpoolAppState extends State<CarpoolApp> {
     super.didChangeDependencies();
     if (_initialized) return;
 
-    final auth = context.read<AuthProvider>();
-    _router = createRouter(auth: auth);
+    final session = context.read<SessionProvider>();
+    _router = createRouter(session: session);
     _initialized = true;
   }
 

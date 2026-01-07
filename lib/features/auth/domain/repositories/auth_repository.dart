@@ -1,25 +1,23 @@
+import '../entities/auth_credential.dart';
 import '../entities/auth_user.dart';
 
 abstract class AuthRepository {
   /// Returns the current logged-in user, or null if guest.
   Future<AuthUser?> getCurrentUser();
 
-  /// Logs in with email and password.
-  Future<AuthUser> login(String email, String password);
+  /// Sign in using any supported credential (email/password, OAuth, OTP etc).
+  Future<AuthUser> signIn(AuthCredential credential);
 
-  /// Registers a new user.
-  Future<void> signup({
-    required String name,
-    required String email,
-    required String password,
-  });
+  /// Start signup using credential (e.g. email/password signup).
+  Future<void> signUp(AuthCredential credential);
 
-  /// Verifies the OTP code (step 2 of signup).
-  Future<AuthUser> verifyOtp(String email, String otp);
+  /// Verify OTP (step 2 of signup or OTP login).
+  Future<AuthUser> verifyOtp(OtpVerifyCredential credential);
 
   /// Logs the user out.
-  Future<void> logout();
+  Future<void> signOut();
 
   /// A stream to listen to auth state changes (Logged In <-> Logged Out).
   Stream<AuthUser?> get authStateChanges;
 }
+

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../../core/session/session_provider.dart';
 import '../../domain/entities/my_ride.dart';
 import '../providers/my_rides_provider.dart';
 import '../widgets/my_ride_card.dart';
@@ -23,8 +23,8 @@ class _MyRidesPageState extends State<MyRidesPage> with SingleTickerProviderStat
     _tabs = TabController(length: 3, vsync: this);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final auth = context.read<AuthProvider>();
-      if (auth.isLoggedIn) {
+      final auth = context.read<SessionProvider>();
+      if (auth.isAuthenticated) {
         context.read<MyRidesProvider>().loadMyRides();
       }
     });
@@ -38,9 +38,9 @@ class _MyRidesPageState extends State<MyRidesPage> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
+    final auth = context.watch<SessionProvider>();
 
-    if (!auth.isLoggedIn) {
+    if (!auth.isAuthenticated) {
       return Scaffold(
         appBar: AppBar(title: const Text('Your rides')),
         body: Center(

@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/platform/chat_launcher.dart';
 import '../services/url_launcher_chat_launcher.dart';
+import '../core/session/session_provider.dart';
+import '../core/session/session_repository.dart';
 
 // ------------------- MY RIDES -------------------
 import '../features/my_rides/data/datasources/my_rides_remote_data_source.dart';
@@ -16,8 +18,8 @@ import '../features/my_rides/presentation/providers/my_rides_provider.dart';
 // ------------------- RIDE SEARCH -------------------
 import '../features/ride_search/data/datasources/ride_remote_data_source.dart';
 import '../features/ride_search/data/repositories/ride_repository_impl.dart';
-import '../features/ride_search/domain/usecases/book_ride_usecase.dart';
-import '../features/ride_search/domain/usecases/search_rides_usecase.dart';
+import '../features/ride_search/application/usecases/book_ride_usecase.dart';
+import '../features/ride_search/application/usecases/search_rides_usecase.dart';
 import '../features/ride_search/presentation/provider/booking_provider.dart';
 import '../features/ride_search/presentation/provider/ride_search_provider.dart';
 
@@ -29,6 +31,12 @@ import '../features/auth/data/datasources/auth_remote_data_source.dart';
 import '../features/auth/data/datasources/supabase_auth_remote_data_source.dart';
 import '../features/auth/data/datasources/auth_mock_data_source.dart';
 import '../features/auth/data/repositories/auth_repository_impl.dart';
+import '../features/auth/application/adapters/auth_session_repository.dart';
+import '../features/auth/data/strategies/auth_strategy_registry.dart';
+import '../features/auth/data/strategies/email_password_signin_strategy.dart';
+import '../features/auth/data/strategies/email_password_signup_strategy.dart';
+import '../features/auth/data/strategies/otp_verify_strategy.dart';
+import '../features/auth/data/strategies/oauth_signin_strategy.dart';
 import '../features/auth/presentation/providers/auth_provider.dart';
 
 // ------------------- VEHICLE -------------------
@@ -69,12 +77,22 @@ class AppDI {
         return MockAuthRemoteDataSource();
       }
     }();
+    final authStrategies = [
+      EmailPasswordSignInStrategy(authRemoteDataSource),
+      EmailPasswordSignUpStrategy(authRemoteDataSource),
+      OtpVerifyStrategy(authRemoteDataSource),
+      OAuthSignInStrategy(),
+    ];
+    final authRegistry = AuthStrategyRegistry(authStrategies);
     final authRepo = AuthRepositoryImpl(
       remote: authRemoteDataSource,
       local: authLocalDataSource,
+      registry: authRegistry,
     );
 
-    final rideRemote = RideRemoteDataSource();
+    final SessionRepository sessionRepository = AuthSessionRepository(authRepo);
+
+final rideRemote = RideRemoteDataSource();
     final rideRepo = RideRepositoryImpl(rideRemote);
 
     final vehicleRepo = VehicleRepositoryMemory();
@@ -115,7 +133,12 @@ final getMyRideDetailsUseCase = GetMyRideDetailsUseCase(myRidesRepo);
         create: (_) => authRepo,
         dispose: (_, repo) => repo.dispose(),
       ),
-
+      Provider<SessionRepository>(
+        create: (_) => sessionRepository,
+      ),
+      ChangeNotifierProvider<SessionProvider>(
+        create: (ctx) => SessionProvider(ctx.read<SessionRepository>()),
+      ),
       ChangeNotifierProvider<AuthProvider>(
         create: (ctx) => AuthProvider(ctx.read<AuthRepositoryImpl>()),
       ),

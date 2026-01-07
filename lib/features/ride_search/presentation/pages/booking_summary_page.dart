@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/tokens.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../../core/session/session_provider.dart';
 import '../../domain/entities/passenger.dart';
 import '../provider/booking_provider.dart';
 import 'booking_result_page.dart';
@@ -119,8 +119,8 @@ class _BookingSummaryPageState extends State<BookingSummaryPage> {
                   onPressed: provider.isSubmitting
                       ? null
                       : () async {
-                          final auth = context.read<AuthProvider>();
-                          if (!auth.isLoggedIn) {
+                          final auth = context.read<SessionProvider>();
+                          if (!auth.isAuthenticated) {
                             context.go('/login?from=/booking-summary');
                             return;
                           }

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../../core/session/session_provider.dart';
 
 /// Placeholder for the Post Ride flow.
 /// Guests can start the flow, but publishing should require auth (to be enforced later at publish).
@@ -11,7 +11,7 @@ class PostRidePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
+    final auth = context.watch<SessionProvider>();
 
     return Scaffold(
       appBar: AppBar(
@@ -26,7 +26,7 @@ class PostRidePage extends StatelessWidget {
               'Draft your ride details here. Publishing will require login and vehicle details.',
             ),
             const SizedBox(height: 16),
-            if (!auth.isLoggedIn)
+            if (!auth.isAuthenticated)
               Card(
                 child: ListTile(
                   title: const Text('Not logged in'),

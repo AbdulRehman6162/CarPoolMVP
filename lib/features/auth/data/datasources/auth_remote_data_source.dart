@@ -7,6 +7,9 @@ abstract class AuthRemoteDataSource {
   /// - Emits null when the session ends / user signs out
   Stream<AuthUserModel?> get authStateChanges;
 
+  /// Returns current remote user if a valid session exists.
+  Future<AuthUserModel?> getCurrentUser();
+
   Future<AuthUserModel> login(String email, String password);
 
   /// Starts signup flow.

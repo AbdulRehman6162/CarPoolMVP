@@ -1,21 +1,21 @@
 import 'package:go_router/go_router.dart';
 
-import '../features/auth/presentation/providers/auth_provider.dart';
+import '../core/session/session_provider.dart';
 import 'routes/auth_routes.dart';
 import 'routes/picker_routes.dart';
 import 'routes/shell_routes.dart';
 
-GoRouter createRouter({required AuthProvider auth}) {
+GoRouter createRouter({required SessionProvider session}) {
   return GoRouter(
     initialLocation: '/',
-    refreshListenable: auth,
+    refreshListenable: session,
     redirect: (context, state) {
-      if (!auth.isInitialized) {
+      if (!session.isInitialized) {
         return null;
       }
 
       final path = state.uri.path;
-      final isLoggedIn = auth.isLoggedIn;
+      final isLoggedIn = session.isAuthenticated;
 
       final isLogin = path == '/login';
       final isSignup = path == '/signup';

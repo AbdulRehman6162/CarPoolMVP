@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/entities/my_ride.dart';
+import '../utils/my_ride_ui_extensions.dart';
 import '../../domain/entities/my_ride_role.dart';
 import '../../domain/entities/my_ride_status.dart';
 
