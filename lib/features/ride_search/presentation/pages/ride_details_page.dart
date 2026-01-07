@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/tokens.dart';
-import '../../domain/entities/passenger.dart';
 import '../../domain/entities/ride.dart';
 import '../../domain/entities/driver.dart';
 import '../provider/booking_provider.dart';
@@ -430,16 +429,8 @@ class _BookingFooter extends StatelessWidget {
                 elevation: 4,
               ),
               onPressed: () {
-                // Keep existing logic
-                // TODO: replace this with real logged-in user.
-                final passenger = Passenger(
-                  id: 'p1',
-                  name: 'Guest User',
-                  isRegistered: false,
-                );
                 bookingProvider.startBooking(
                   ride: ride,
-                  passenger: passenger,
                 );
 
                 context.pushNamed('booking-summary');

@@ -1,5 +1,6 @@
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/platform/chat_launcher.dart';
 import '../services/url_launcher_chat_launcher.dart';
@@ -21,6 +22,12 @@ import '../features/ride_search/presentation/provider/booking_provider.dart';
 import '../features/ride_search/presentation/provider/ride_search_provider.dart';
 
 // ------------------- AUTH -------------------
+import '../core/platform/secure_kv_store.dart';
+import '../services/flutter_secure_kv_store.dart';
+import '../features/auth/data/datasources/auth_local_data_source.dart';
+import '../features/auth/data/datasources/auth_remote_data_source.dart';
+import '../features/auth/data/datasources/supabase_auth_remote_data_source.dart';
+import '../features/auth/data/datasources/auth_mock_data_source.dart';
 import '../features/auth/data/repositories/auth_repository_impl.dart';
 import '../features/auth/presentation/providers/auth_provider.dart';
 
@@ -51,7 +58,21 @@ class AppDI {
     // DATA LAYER (Repos + Datasources)
     // ---------------------------------------------------------------------------
 
-    final authRepo = AuthRepositoryImpl();
+        // Auth wiring (DIP-friendly)
+    final SecureKvStore secureKvStore = FlutterSecureKvStore();
+    final authLocalDataSource = AuthLocalDataSource(secureKvStore);
+    final AuthRemoteDataSource authRemoteDataSource = () {
+      try {
+        return SupabaseAuthRemoteDataSource(Supabase.instance.client);
+      } catch (_) {
+        // Supabase not initialised (e.g., tests) – fall back to mock.
+        return MockAuthRemoteDataSource();
+      }
+    }();
+    final authRepo = AuthRepositoryImpl(
+      remote: authRemoteDataSource,
+      local: authLocalDataSource,
+    );
 
     final rideRemote = RideRemoteDataSource();
     final rideRepo = RideRepositoryImpl(rideRemote);
@@ -90,8 +111,13 @@ final getMyRideDetailsUseCase = GetMyRideDetailsUseCase(myRidesRepo);
     // ---------------------------------------------------------------------------
     return [
       // Auth
+      Provider<AuthRepositoryImpl>(
+        create: (_) => authRepo,
+        dispose: (_, repo) => repo.dispose(),
+      ),
+
       ChangeNotifierProvider<AuthProvider>(
-        create: (_) => AuthProvider(authRepo),
+        create: (ctx) => AuthProvider(ctx.read<AuthRepositoryImpl>()),
       ),
 
       // Ride Search

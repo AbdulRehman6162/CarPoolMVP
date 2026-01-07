@@ -22,6 +22,7 @@ class BookingProvider extends ChangeNotifier {
   String? _errorMessage;
 
   Ride? get ride => _ride;
+  Passenger? get passenger => _passenger;
   String get comment => _comment;
   int get seats => _seats;
   BookingResult? get result => _result;
@@ -30,7 +31,7 @@ class BookingProvider extends ChangeNotifier {
 
   void startBooking({
     required Ride ride,
-    required Passenger passenger,
+    Passenger? passenger,
     int seats = 1,
   }) {
     _ride = ride;
@@ -39,6 +40,11 @@ class BookingProvider extends ChangeNotifier {
     _comment = '';
     _result = null;
     _errorMessage = null;
+    notifyListeners();
+  }
+
+  void setPassenger(Passenger passenger) {
+    _passenger = passenger;
     notifyListeners();
   }
 
@@ -55,8 +61,13 @@ class BookingProvider extends ChangeNotifier {
   Future<void> submitBooking() async {
     final ride = _ride;
     final passenger = _passenger;
-    if (ride == null || passenger == null) {
-      _errorMessage = 'Ride or passenger not set.';
+    if (ride == null) {
+      _errorMessage = 'Ride not set.';
+      notifyListeners();
+      return;
+    }
+    if (passenger == null) {
+      _errorMessage = 'Passenger not set.';
       notifyListeners();
       return;
     }

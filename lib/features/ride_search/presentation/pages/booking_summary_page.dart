@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/tokens.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../domain/entities/passenger.dart';
 import '../provider/booking_provider.dart';
 import 'booking_result_page.dart';
 
@@ -116,6 +119,21 @@ class _BookingSummaryPageState extends State<BookingSummaryPage> {
                   onPressed: provider.isSubmitting
                       ? null
                       : () async {
+                          final auth = context.read<AuthProvider>();
+                          if (!auth.isLoggedIn) {
+                            context.go('/login?from=/booking-summary');
+                            return;
+                          }
+
+                          final user = auth.user!;
+                          provider.setPassenger(
+                            Passenger(
+                              id: user.id,
+                              name: user.name,
+                              isRegistered: true,
+                            ),
+                          );
+
                           await provider.submitBooking();
                           if (context.mounted) {
                             Navigator.of(context).push(

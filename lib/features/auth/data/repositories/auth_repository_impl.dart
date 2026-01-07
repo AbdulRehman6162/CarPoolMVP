@@ -1,66 +1,96 @@
 import 'dart:async';
+
 import '../../domain/entities/auth_user.dart';
 import '../../domain/repositories/auth_repository.dart';
+import '../datasources/auth_local_data_source.dart';
+import '../datasources/auth_remote_data_source.dart';
+import '../models/auth_user_model.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
-  // Simulating a local "Session"
+  final AuthRemoteDataSource _remote;
+  final AuthLocalDataSource _local;
+
   AuthUser? _currentUser;
-  final _controller = StreamController<AuthUser?>.broadcast();
+  final StreamController<AuthUser?> _controller =
+      StreamController<AuthUser?>.broadcast();
+
+  StreamSubscription<AuthUserModel?>? _remoteSub;
+
+  AuthRepositoryImpl({
+    required AuthRemoteDataSource remote,
+    required AuthLocalDataSource local,
+  })  : _remote = remote,
+        _local = local {
+    // Keep repository state consistent with remote provider session changes.
+    _remoteSub = _remote.authStateChanges.listen(
+      (model) async {
+        try {
+          if (model == null) {
+            await _local.clear();
+            _currentUser = null;
+            _controller.add(null);
+            return;
+          }
+          await _persistAndEmit(model);
+        } catch (_) {
+          // Ignore remote stream errors to avoid crashing the app.
+        }
+      },
+    );
+  }
 
   @override
   Stream<AuthUser?> get authStateChanges => _controller.stream;
 
   @override
   Future<AuthUser?> getCurrentUser() async {
-    // In a real app, you would check SharedPreferences/SecureStorage here
+    final cached = await _local.getUser();
+    _currentUser = cached?.toEntity();
     return _currentUser;
   }
 
   @override
   Future<AuthUser> login(String email, String password) async {
-    await Future.delayed(const Duration(seconds: 2)); // Simulate network
-
-    // Mock Validation
-    if (email.contains('error')) {
-      throw Exception('User not found');
-    }
-
-    _currentUser = const AuthUser(
-      id: 'u123',
-      email: 'demo@carpool.com',
-      name: 'Ali Khan',
-      photoUrl: 'https://i.pravatar.cc/300',
-    );
-
-    _controller.add(_currentUser);
-    return _currentUser!;
+    final model = await _remote.login(email, password);
+    await _persistAndEmit(model);
+    return model.toEntity();
   }
 
   @override
-  Future<void> signup({required String name, required String email, required String password}) async {
-    await Future.delayed(const Duration(seconds: 1));
-    // In real flow, this triggers an SMS/Email. Here we just succeed.
+  Future<void> signup({
+    required String name,
+    required String email,
+    required String password,
+  }) async {
+    await _remote.signup(name: name, email: email, password: password);
   }
 
   @override
   Future<AuthUser> verifyOtp(String email, String otp) async {
-    await Future.delayed(const Duration(seconds: 1));
-    if (otp != "1234") throw Exception("Invalid OTP Code");
-
-    // Success after OTP
-    _currentUser = AuthUser(
-      id: 'u456',
-      email: email,
-      name: 'New User',
-    );
-    _controller.add(_currentUser);
-    return _currentUser!;
+    final model = await _remote.verifyOtp(email, otp);
+    await _persistAndEmit(model);
+    return model.toEntity();
   }
 
   @override
   Future<void> logout() async {
-    await Future.delayed(const Duration(milliseconds: 500));
+    // Remote sign-out first (may trigger remote authStateChanges).
+    await _remote.logout();
+
+    await _local.clear();
     _currentUser = null;
     _controller.add(null);
+  }
+
+  Future<void> _persistAndEmit(AuthUserModel model) async {
+    await _local.saveUser(model);
+    _currentUser = model.toEntity();
+    _controller.add(_currentUser);
+  }
+
+  /// Not part of domain abstraction; owned by composition root (DI).
+  void dispose() {
+    _remoteSub?.cancel();
+    _controller.close();
   }
 }
