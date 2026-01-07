@@ -4,8 +4,7 @@ import '../datasources/auth_remote_data_source.dart';
 import '../models/auth_user_model.dart';
 import 'auth_strategy.dart';
 
-class EmailPasswordSignInStrategy
-    implements AuthStrategy<EmailPasswordLoginCredential> {
+class EmailPasswordSignInStrategy extends AuthStrategy {
   final AuthRemoteDataSource _remote;
   EmailPasswordSignInStrategy(this._remote);
 
@@ -14,10 +13,9 @@ class EmailPasswordSignInStrategy
       credential is EmailPasswordLoginCredential;
 
   @override
-  Future<AuthUser?> signIn(EmailPasswordLoginCredential credential) async {
-    final AuthUserModel model =
-        await _remote.login(credential.email, credential.password);
+  Future<AuthUser?> signIn(AuthCredential credential) async {
+    final c = credential as EmailPasswordLoginCredential;
+    final AuthUserModel model = await _remote.login(c.email, c.password);
     return model.toEntity();
   }
 }
-

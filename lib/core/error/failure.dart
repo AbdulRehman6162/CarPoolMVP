@@ -1,4 +1,4 @@
-abstract class Failure {
+abstract class Failure implements Exception {
   final String code;
 
   /// Safe for user display (localize later).

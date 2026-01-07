@@ -7,23 +7,20 @@ class AuthStrategyRegistry {
 
   AuthStrategyRegistry(this._strategies);
 
-  AuthStrategy<T> _get<T extends AuthCredential>(T credential) {
+  AuthStrategy _get(AuthCredential credential) {
     for (final s in _strategies) {
-      if (s.canHandle(credential)) {
-        return s as AuthStrategy<T>;
-      }
+      if (s.canHandle(credential)) return s;
     }
     throw StateError('No auth strategy registered for ${credential.runtimeType}');
   }
 
   Future<AuthUser?> signIn(AuthCredential credential) async {
     final s = _get(credential);
-    return s.signIn(credential as dynamic);
+    return s.signIn(credential);
   }
 
   Future<void> signUp(AuthCredential credential) async {
     final s = _get(credential);
-    return s.signUp(credential as dynamic);
+    return s.signUp(credential);
   }
 }
-

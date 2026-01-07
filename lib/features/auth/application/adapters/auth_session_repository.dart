@@ -26,7 +26,7 @@ class AuthSessionRepository implements SessionRepository {
     return SessionUser(
       id: user.id,
       email: user.email,
-      phone: user.phone,
+      phone: user.phoneNumber,
       displayName: user.name,
     );
   }

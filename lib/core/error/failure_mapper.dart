@@ -2,6 +2,7 @@ import 'failure.dart';
 
 class FailureMapper {
   static Failure from(Object error, [StackTrace? st]) {
+    if (error is Failure) return error;
     // Add richer mappings as you integrate Supabase/Firebase exceptions.
     final msg = error.toString();
 

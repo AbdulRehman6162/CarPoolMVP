@@ -129,7 +129,7 @@ class _BookingSummaryPageState extends State<BookingSummaryPage> {
                           provider.setPassenger(
                             Passenger(
                               id: user.id,
-                              name: user.name,
+                              name: (user.displayName ?? user.email ?? user.phone ?? 'User'),
                               isRegistered: true,
                             ),
                           );

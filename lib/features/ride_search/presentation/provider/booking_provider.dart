@@ -64,12 +64,12 @@ Ride? get ride => _ride;
     final ride = _ride;
     final passenger = _passenger;
     if (ride == null) {
-      _errorMessage = 'Ride not set.';
+      _failure = const ValidationFailure(userMessage: 'Ride not set.');
       notifyListeners();
       return;
     }
     if (passenger == null) {
-      _errorMessage = 'Passenger not set.';
+      _failure = const ValidationFailure(userMessage: 'Passenger not set.');
       notifyListeners();
       return;
     }

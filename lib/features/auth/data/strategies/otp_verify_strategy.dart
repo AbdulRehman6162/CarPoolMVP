@@ -4,7 +4,7 @@ import '../datasources/auth_remote_data_source.dart';
 import '../models/auth_user_model.dart';
 import 'auth_strategy.dart';
 
-class OtpVerifyStrategy implements AuthStrategy<OtpVerifyCredential> {
+class OtpVerifyStrategy extends AuthStrategy {
   final AuthRemoteDataSource _remote;
   OtpVerifyStrategy(this._remote);
 
@@ -12,10 +12,9 @@ class OtpVerifyStrategy implements AuthStrategy<OtpVerifyCredential> {
   bool canHandle(AuthCredential credential) => credential is OtpVerifyCredential;
 
   @override
-  Future<AuthUser?> signIn(OtpVerifyCredential credential) async {
-    final AuthUserModel model =
-        await _remote.verifyOtp(credential.email, credential.otp);
+  Future<AuthUser?> signIn(AuthCredential credential) async {
+    final c = credential as OtpVerifyCredential;
+    final AuthUserModel model = await _remote.verifyOtp(c.email, c.otp);
     return model.toEntity();
   }
 }
-

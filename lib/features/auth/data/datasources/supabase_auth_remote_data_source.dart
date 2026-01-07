@@ -19,16 +19,12 @@ class SupabaseAuthRemoteDataSource implements AuthRemoteDataSource {
       });
 
 @override
-Future<AuthUserModel?> getCurrentUser() async {
-  final user = _client.auth.currentUser;
-  if (user == null) return null;
-  return AuthUserModel(
-    id: user.id,
-    email: user.email ?? '',
-    name: user.userMetadata?['name'] as String? ?? '',
-    phone: user.phone,
-  );
-}
+  Future<AuthUserModel?> getCurrentUser() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return null;
+    return _mapUser(user);
+  }
+
 
   @override
   Future<AuthUserModel> login(String email, String password) async {

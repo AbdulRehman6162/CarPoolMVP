@@ -33,6 +33,7 @@ import '../features/auth/data/datasources/auth_mock_data_source.dart';
 import '../features/auth/data/repositories/auth_repository_impl.dart';
 import '../features/auth/application/adapters/auth_session_repository.dart';
 import '../features/auth/data/strategies/auth_strategy_registry.dart';
+import '../features/auth/data/strategies/auth_strategy.dart';
 import '../features/auth/data/strategies/email_password_signin_strategy.dart';
 import '../features/auth/data/strategies/email_password_signup_strategy.dart';
 import '../features/auth/data/strategies/otp_verify_strategy.dart';
@@ -77,7 +78,7 @@ class AppDI {
         return MockAuthRemoteDataSource();
       }
     }();
-    final authStrategies = [
+    final authStrategies = <AuthStrategy>[
       EmailPasswordSignInStrategy(authRemoteDataSource),
       EmailPasswordSignUpStrategy(authRemoteDataSource),
       OtpVerifyStrategy(authRemoteDataSource),

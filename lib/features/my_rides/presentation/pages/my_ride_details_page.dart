@@ -6,6 +6,7 @@ import '../../../../core/platform/chat_launcher.dart';
 import '../../domain/entities/my_ride.dart';
 import '../../domain/entities/my_ride_role.dart';
 import '../../domain/entities/my_ride_status.dart';
+import '../utils/my_ride_ui_extensions.dart';
 
 class MyRideDetailsPage extends StatelessWidget {
   final MyRide ride;

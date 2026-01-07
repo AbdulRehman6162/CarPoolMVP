@@ -25,8 +25,8 @@ bool get loading => _loading;
     notifyListeners();
   }
 
-  void _setError(String? message) {
-    _errorMessage = message;
+  void _setError(Failure? failure) {
+    _failure = failure;
     notifyListeners();
   }
 
@@ -40,7 +40,7 @@ bool get loading => _loading;
       _lastPublishedRideId = id;
       return id;
     } catch (e) {
-      _setError(e.toString());
+      _setError(FailureMapper.from(e));
       return null;
     } finally {
       _setLoading(false);
@@ -56,7 +56,7 @@ bool get loading => _loading;
       final id = await _publishReturnRide(returnDraft);
       return id;
     } catch (e) {
-      _setError(e.toString());
+      _setError(FailureMapper.from(e));
       return null;
     } finally {
       _setLoading(false);

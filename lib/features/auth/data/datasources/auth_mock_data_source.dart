@@ -8,6 +8,12 @@ class MockAuthRemoteDataSource implements AuthRemoteDataSource {
   Stream<AuthUserModel?> get authStateChanges => const Stream<AuthUserModel?>.empty();
 
   @override
+  Future<AuthUserModel?> getCurrentUser() async {
+    return null;
+  }
+
+
+  @override
   Future<AuthUserModel> login(String email, String password) async {
     await Future.delayed(const Duration(milliseconds: 500));
     return AuthUserModel(
