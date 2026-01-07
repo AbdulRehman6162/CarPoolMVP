@@ -1,0 +1,4478 @@
+diff --git a/lib/app/app.dart b/lib/app/app.dart
+--- a/lib/app/app.dart
++++ b/lib/app/app.dart
+@@ -1,46 +1,46 @@
+-import 'package:flutter/material.dart';
+-import 'package:flutter_localizations/flutter_localizations.dart';
+-import 'package:go_router/go_router.dart';
+-import 'package:provider/provider.dart';
+-
+-import '../core/design_system/theme.dart';
+-import '../features/auth/presentation/providers/auth_provider.dart';
+-import 'router.dart';
+-
+-class CarpoolApp extends StatefulWidget {
+-  const CarpoolApp({super.key});
+-
+-  @override
+-  State<CarpoolApp> createState() => _CarpoolAppState();
+-}
+-
+-class _CarpoolAppState extends State<CarpoolApp> {
+-  late final GoRouter _router;
+-  bool _initialized = false;
+-
+-  @override
+-  void didChangeDependencies() {
+-    super.didChangeDependencies();
+-    if (_initialized) return;
+-
+-    final auth = context.read<AuthProvider>();
+-    _router = createRouter(auth: auth);
+-    _initialized = true;
+-  }
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return MaterialApp.router(
+-      title: 'Carpool MVP',
+-      debugShowCheckedModeBanner: false,
+-      theme: AppTheme.light,
+-      routerConfig: _router,
+-      supportedLocales: const [Locale('en'), Locale('ur')],
+-      localizationsDelegates: const [
+-        GlobalMaterialLocalizations.delegate,
+-        GlobalCupertinoLocalizations.delegate,
+-        GlobalWidgetsLocalizations.delegate,
+-      ],
+-    );
+-  }
+-}
++import 'package:flutter/material.dart';
++import 'package:flutter_localizations/flutter_localizations.dart';
++import 'package:go_router/go_router.dart';
++import 'package:provider/provider.dart';
++
++import '../core/design_system/theme.dart';
++import '../core/session/session_provider.dart';
++import 'router.dart';
++
++class CarpoolApp extends StatefulWidget {
++  const CarpoolApp({super.key});
++
++  @override
++  State<CarpoolApp> createState() => _CarpoolAppState();
++}
++
++class _CarpoolAppState extends State<CarpoolApp> {
++  late final GoRouter _router;
++  bool _initialized = false;
++
++  @override
++  void didChangeDependencies() {
++    super.didChangeDependencies();
++    if (_initialized) return;
++
++    final session = context.read<SessionProvider>();
++    _router = createRouter(session: session);
++    _initialized = true;
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    return MaterialApp.router(
++      title: 'Carpool MVP',
++      debugShowCheckedModeBanner: false,
++      theme: AppTheme.light,
++      routerConfig: _router,
++      supportedLocales: const [Locale('en'), Locale('ur')],
++      localizationsDelegates: const [
++        GlobalMaterialLocalizations.delegate,
++        GlobalCupertinoLocalizations.delegate,
++        GlobalWidgetsLocalizations.delegate,
++      ],
++    );
++  }
++}
+diff --git a/lib/app/router.dart b/lib/app/router.dart
+--- a/lib/app/router.dart
++++ b/lib/app/router.dart
+@@ -1,43 +1,43 @@
+-import 'package:go_router/go_router.dart';
+-
+-import '../features/auth/presentation/providers/auth_provider.dart';
+-import 'routes/auth_routes.dart';
+-import 'routes/picker_routes.dart';
+-import 'routes/shell_routes.dart';
+-
+-GoRouter createRouter({required AuthProvider auth}) {
+-  return GoRouter(
+-    initialLocation: '/',
+-    refreshListenable: auth,
+-    redirect: (context, state) {
+-      if (!auth.isInitialized) {
+-        return null;
+-      }
+-
+-      final path = state.uri.path;
+-      final isLoggedIn = auth.isLoggedIn;
+-
+-      final isLogin = path == '/login';
+-      final isSignup = path == '/signup';
+-
+-      final requiresAuth =
+-          path.startsWith('/my-rides') || path.startsWith('/profile') || path.startsWith('/post-ride');
+-
+-      if (!isLoggedIn && requiresAuth) {
+-        final from = Uri.encodeComponent(state.uri.toString());
+-        return '/login?from=$from';
+-      }
+-
+-      if (isLoggedIn && (isLogin || isSignup)) {
+-        return '/';
+-      }
+-
+-      return null;
+-    },
+-    routes: [
+-      ...authRoutes(),
+-      appShellRoute(),
+-      ...pickerRoutes(),
+-    ],
+-  );
+-}
++import 'package:go_router/go_router.dart';
++
++import '../core/session/session_provider.dart';
++import 'routes/auth_routes.dart';
++import 'routes/picker_routes.dart';
++import 'routes/shell_routes.dart';
++
++GoRouter createRouter({required SessionProvider session}) {
++  return GoRouter(
++    initialLocation: '/',
++    refreshListenable: session,
++    redirect: (context, state) {
++      if (!session.isInitialized) {
++        return null;
++      }
++
++      final path = state.uri.path;
++      final isLoggedIn = session.isAuthenticated;
++
++      final isLogin = path == '/login';
++      final isSignup = path == '/signup';
++
++      final requiresAuth =
++          path.startsWith('/my-rides') || path.startsWith('/profile') || path.startsWith('/post-ride');
++
++      if (!isLoggedIn && requiresAuth) {
++        final from = Uri.encodeComponent(state.uri.toString());
++        return '/login?from=$from';
++      }
++
++      if (isLoggedIn && (isLogin || isSignup)) {
++        return '/';
++      }
++
++      return null;
++    },
++    routes: [
++      ...authRoutes(),
++      appShellRoute(),
++      ...pickerRoutes(),
++    ],
++  );
++}
+diff --git a/lib/core/error/failure.dart b/lib/core/error/failure.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/core/error/failure.dart
+@@ -0,0 +1,61 @@
++abstract class Failure {
++  final String code;
++
++  /// Safe for user display (localize later).
++  final String userMessage;
++
++  /// Useful for logging/crash reporting.
++  final String? debugMessage;
++
++  const Failure({
++    required this.code,
++    required this.userMessage,
++    this.debugMessage,
++  });
++}
++
++class UnknownFailure extends Failure {
++  const UnknownFailure({String? debugMessage})
++      : super(
++          code: 'unknown',
++          userMessage: 'Something went wrong. Please try again.',
++          debugMessage: debugMessage,
++        );
++}
++
++class NetworkFailure extends Failure {
++  const NetworkFailure({String? debugMessage})
++      : super(
++          code: 'network',
++          userMessage: 'Network error. Please check your internet and try again.',
++          debugMessage: debugMessage,
++        );
++}
++
++class ValidationFailure extends Failure {
++  const ValidationFailure({required String userMessage, String? debugMessage})
++      : super(
++          code: 'validation',
++          userMessage: userMessage,
++          debugMessage: debugMessage,
++        );
++}
++
++class AuthFailure extends Failure {
++  const AuthFailure({required String userMessage, String? debugMessage})
++      : super(
++          code: 'auth',
++          userMessage: userMessage,
++          debugMessage: debugMessage,
++        );
++}
++
++class NotImplementedFailure extends Failure {
++  const NotImplementedFailure({String? debugMessage})
++      : super(
++          code: 'not_implemented',
++          userMessage: 'This feature is not available yet.',
++          debugMessage: debugMessage,
++        );
++}
++
+diff --git a/lib/core/error/failure_mapper.dart b/lib/core/error/failure_mapper.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/core/error/failure_mapper.dart
+@@ -0,0 +1,35 @@
++import 'failure.dart';
++
++class FailureMapper {
++  static Failure from(Object error, [StackTrace? st]) {
++    // Add richer mappings as you integrate Supabase/Firebase exceptions.
++    final msg = error.toString();
++
++    if (msg.contains('SocketException') ||
++        msg.contains('Failed host lookup') ||
++        msg.contains('Connection failed')) {
++      return NetworkFailure(debugMessage: msg);
++    }
++
++    if (msg.toLowerCase().contains('invalid') ||
++        msg.toLowerCase().contains('required')) {
++      return ValidationFailure(
++        userMessage: 'Please check your input and try again.',
++        debugMessage: msg,
++      );
++    }
++
++    if (msg.toLowerCase().contains('auth') ||
++        msg.toLowerCase().contains('login') ||
++        msg.toLowerCase().contains('password') ||
++        msg.toLowerCase().contains('otp')) {
++      return AuthFailure(
++        userMessage: 'Unable to authenticate. Please try again.',
++        debugMessage: msg,
++      );
++    }
++
++    return UnknownFailure(debugMessage: msg);
++  }
++}
++
+diff --git a/lib/core/result/result.dart b/lib/core/result/result.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/core/result/result.dart
+@@ -0,0 +1,28 @@
++sealed class Result<T> {
++  const Result();
++
++  bool get isSuccess => this is Success<T>;
++  bool get isFailure => this is FailureResult<T>;
++
++  R when<R>({
++    required R Function(T value) success,
++    required R Function(Failure failure) failure,
++  }) {
++    final self = this;
++    if (self is Success<T>) return success(self.value);
++    if (self is FailureResult<T>) return failure(self.failure);
++    // ignore: dead_code
++    throw StateError('Unknown Result type: $runtimeType');
++  }
++}
++
++class Success<T> extends Result<T> {
++  final T value;
++  const Success(this.value);
++}
++
++class FailureResult<T> extends Result<T> {
++  final Failure failure;
++  const FailureResult(this.failure);
++}
++
+diff --git a/lib/core/session/session_provider.dart b/lib/core/session/session_provider.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/core/session/session_provider.dart
+@@ -0,0 +1,49 @@
++import 'dart:async';
++import 'package:flutter/foundation.dart';
++
++import 'session_repository.dart';
++import 'session_user.dart';
++
++class SessionProvider extends ChangeNotifier {
++  final SessionRepository _repository;
++
++  late final StreamSubscription<SessionUser?> _sub;
++
++  SessionUser? _user;
++  bool _isInitialized = false;
++
++  SessionProvider(this._repository) {
++    _sub = _repository.authStateChanges.listen((user) {
++      _user = user;
++      notifyListeners();
++    });
++
++    _bootstrap();
++  }
++
++  Future<void> _bootstrap() async {
++    try {
++      _user = await _repository.getCurrentUser();
++    } catch (_) {
++      // ignore bootstrap issues
++    } finally {
++      _isInitialized = true;
++      notifyListeners();
++    }
++  }
++
++  SessionUser? get user => _user;
++  bool get isAuthenticated => _user != null;
++  bool get isInitialized => _isInitialized;
++
++  Future<void> logout() async {
++    await _repository.signOut();
++  }
++
++  @override
++  void dispose() {
++    _sub.cancel();
++    super.dispose();
++  }
++}
++
+diff --git a/lib/core/session/session_repository.dart b/lib/core/session/session_repository.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/core/session/session_repository.dart
+@@ -0,0 +1,8 @@
++import 'session_user.dart';
++
++abstract class SessionRepository {
++  Stream<SessionUser?> get authStateChanges;
++  Future<SessionUser?> getCurrentUser();
++  Future<void> signOut();
++}
++
+diff --git a/lib/core/session/session_user.dart b/lib/core/session/session_user.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/core/session/session_user.dart
+@@ -0,0 +1,14 @@
++class SessionUser {
++  final String id;
++  final String? email;
++  final String? phone;
++  final String? displayName;
++
++  const SessionUser({
++    required this.id,
++    this.email,
++    this.phone,
++    this.displayName,
++  });
++}
++
+diff --git a/lib/di/app_di.dart b/lib/di/app_di.dart
+--- a/lib/di/app_di.dart
++++ b/lib/di/app_di.dart
+@@ -1,168 +1,191 @@
+-import 'package:provider/provider.dart';
+-import 'package:provider/single_child_widget.dart';
+-import 'package:supabase_flutter/supabase_flutter.dart';
+-
+-import '../core/platform/chat_launcher.dart';
+-import '../services/url_launcher_chat_launcher.dart';
+-
+-// ------------------- MY RIDES -------------------
+-import '../features/my_rides/data/datasources/my_rides_remote_data_source.dart';
+-import '../features/my_rides/data/repositories/my_rides_repository_impl.dart';
+-import '../features/my_rides/application/usecases/get_archived_rides_usecase.dart';
+-import '../features/my_rides/application/usecases/get_my_ride_details_usecase.dart';
+-import '../features/my_rides/application/usecases/get_my_rides_usecase.dart';
+-import '../features/my_rides/presentation/providers/my_rides_provider.dart';
+-
+-// ------------------- RIDE SEARCH -------------------
+-import '../features/ride_search/data/datasources/ride_remote_data_source.dart';
+-import '../features/ride_search/data/repositories/ride_repository_impl.dart';
+-import '../features/ride_search/domain/usecases/book_ride_usecase.dart';
+-import '../features/ride_search/domain/usecases/search_rides_usecase.dart';
+-import '../features/ride_search/presentation/provider/booking_provider.dart';
+-import '../features/ride_search/presentation/provider/ride_search_provider.dart';
+-
+-// ------------------- AUTH -------------------
+-import '../core/platform/secure_kv_store.dart';
+-import '../services/flutter_secure_kv_store.dart';
+-import '../features/auth/data/datasources/auth_local_data_source.dart';
+-import '../features/auth/data/datasources/auth_remote_data_source.dart';
+-import '../features/auth/data/datasources/supabase_auth_remote_data_source.dart';
+-import '../features/auth/data/datasources/auth_mock_data_source.dart';
+-import '../features/auth/data/repositories/auth_repository_impl.dart';
+-import '../features/auth/presentation/providers/auth_provider.dart';
+-
+-// ------------------- VEHICLE -------------------
+-import '../features/vehicle/data/repositories/vehicle_repository_memory.dart';
+-import '../features/vehicle/presentation/providers/vehicle_provider.dart';
+-
+-// ------------------- POST RIDE -------------------
+-import '../features/post_ride/data/repositories/ride_draft_repository_memory.dart';
+-import '../features/post_ride/data/repositories/route_repository_mock.dart';
+-import '../features/post_ride/data/repositories/ride_publish_repository_mock.dart';
+-
+-import '../features/post_ride/application/usecases/create_new_draft_usecase.dart';
+-import '../features/post_ride/application/usecases/save_draft_usecase.dart';
+-import '../features/post_ride/application/usecases/get_route_options_usecase.dart';
+-import '../features/post_ride/application/usecases/publish_ride_usecase.dart';
+-import '../features/post_ride/application/usecases/publish_return_ride_usecase.dart';
+-import '../features/post_ride/application/usecases/ensure_publish_eligibility_usecase.dart';
+-
+-import '../features/post_ride/presentation/providers/post_ride_draft_provider.dart';
+-import '../features/post_ride/presentation/providers/post_ride_publish_provider.dart';
+-
+-/// Minimal DI module for Provider-based apps.
+-/// Keeps `main.dart` small and prevents it from growing into a wiring monolith.
+-class AppDI {
+-  static List<SingleChildWidget> providers() {
+-    // ---------------------------------------------------------------------------
+-    // DATA LAYER (Repos + Datasources)
+-    // ---------------------------------------------------------------------------
+-
+-        // Auth wiring (DIP-friendly)
+-    final SecureKvStore secureKvStore = FlutterSecureKvStore();
+-    final authLocalDataSource = AuthLocalDataSource(secureKvStore);
+-    final AuthRemoteDataSource authRemoteDataSource = () {
+-      try {
+-        return SupabaseAuthRemoteDataSource(Supabase.instance.client);
+-      } catch (_) {
+-        // Supabase not initialised (e.g., tests) – fall back to mock.
+-        return MockAuthRemoteDataSource();
+-      }
+-    }();
+-    final authRepo = AuthRepositoryImpl(
+-      remote: authRemoteDataSource,
+-      local: authLocalDataSource,
+-    );
+-
+-    final rideRemote = RideRemoteDataSource();
+-    final rideRepo = RideRepositoryImpl(rideRemote);
+-
+-    final vehicleRepo = VehicleRepositoryMemory();
+-
+-    final draftRepo = RideDraftRepositoryMemory();
+-    final routeRepo = RouteRepositoryMock();
+-    final publishRepo = RidePublishRepositoryMock();
+-final myRidesRemote = MyRidesRemoteDataSource();
+-final myRidesRepo = MyRidesRepositoryImpl(myRidesRemote);
+-
+-final getMyRidesUseCase = GetMyRidesUseCase(myRidesRepo);
+-final getArchivedRidesUseCase = GetArchivedRidesUseCase(myRidesRepo);
+-final getMyRideDetailsUseCase = GetMyRideDetailsUseCase(myRidesRepo);
+-
+-    // ---------------------------------------------------------------------------
+-    // USE CASES
+-    // ---------------------------------------------------------------------------
+-
+-    final searchRidesUseCase = SearchRidesUseCase(rideRepo);
+-    final bookRideUseCase = BookRideUseCase(rideRepo);
+-
+-    final createDraftUseCase = CreateNewDraftUseCase(draftRepo);
+-    final saveDraftUseCase = SaveDraftUseCase(draftRepo);
+-    final getRoutesUseCase = GetRouteOptionsUseCase(routeRepo);
+-    final publishRideUseCase = PublishRideUseCase(publishRepo);
+-    final publishReturnRideUseCase = PublishReturnRideUseCase(publishRepo);
+-    final ensurePublishEligibilityUseCase = EnsurePublishEligibilityUseCase(authRepo, vehicleRepo);
+-
+-    // Platform services
+-    final ChatLauncher chatLauncher = UrlLauncherChatLauncher();
+-
+-    // ---------------------------------------------------------------------------
+-    // PROVIDERS
+-    // ---------------------------------------------------------------------------
+-    return [
+-      // Auth
+-      Provider<AuthRepositoryImpl>(
+-        create: (_) => authRepo,
+-        dispose: (_, repo) => repo.dispose(),
+-      ),
+-
+-      ChangeNotifierProvider<AuthProvider>(
+-        create: (ctx) => AuthProvider(ctx.read<AuthRepositoryImpl>()),
+-      ),
+-
+-      // Ride Search
+-      ChangeNotifierProvider<RideSearchProvider>(
+-        create: (_) => RideSearchProvider(searchRidesUseCase),
+-      ),
+-      ChangeNotifierProvider<BookingProvider>(
+-        create: (_) => BookingProvider(bookRideUseCase),
+-      ),
+-
+-      ChangeNotifierProvider<MyRidesProvider>(
+-        create: (_) => MyRidesProvider(
+-          getMyRidesUseCase,
+-          getArchivedRidesUseCase,
+-          getMyRideDetailsUseCase,
+-        ),
+-      ),
+-
+-      // Vehicle
+-      ChangeNotifierProvider<VehicleProvider>(
+-        create: (_) => VehicleProvider(vehicleRepo)..refresh(),
+-      ),
+-
+-      // Post Ride
+-      Provider<EnsurePublishEligibilityUseCase>(
+-        create: (_) => ensurePublishEligibilityUseCase,
+-      ),
+-      ChangeNotifierProvider<PostRideDraftProvider>(
+-        create: (_) => PostRideDraftProvider(
+-          createDraftUseCase,
+-          saveDraftUseCase,
+-          getRoutesUseCase,
+-        ),
+-      ),
+-      ChangeNotifierProvider<PostRidePublishProvider>(
+-        create: (_) => PostRidePublishProvider(
+-          publishRideUseCase,
+-          publishReturnRideUseCase,
+-        ),
+-      ),
+-
+-      // Platform boundary services
+-      Provider<ChatLauncher>(
+-        create: (_) => chatLauncher,
+-      ),
+-    ];
+-  }
+-}
++import 'package:provider/provider.dart';
++import 'package:provider/single_child_widget.dart';
++import 'package:supabase_flutter/supabase_flutter.dart';
++
++import '../core/platform/chat_launcher.dart';
++import '../services/url_launcher_chat_launcher.dart';
++import '../core/session/session_provider.dart';
++import '../core/session/session_repository.dart';
++
++// ------------------- MY RIDES -------------------
++import '../features/my_rides/data/datasources/my_rides_remote_data_source.dart';
++import '../features/my_rides/data/repositories/my_rides_repository_impl.dart';
++import '../features/my_rides/application/usecases/get_archived_rides_usecase.dart';
++import '../features/my_rides/application/usecases/get_my_ride_details_usecase.dart';
++import '../features/my_rides/application/usecases/get_my_rides_usecase.dart';
++import '../features/my_rides/presentation/providers/my_rides_provider.dart';
++
++// ------------------- RIDE SEARCH -------------------
++import '../features/ride_search/data/datasources/ride_remote_data_source.dart';
++import '../features/ride_search/data/repositories/ride_repository_impl.dart';
++import '../features/ride_search/application/usecases/book_ride_usecase.dart';
++import '../features/ride_search/application/usecases/search_rides_usecase.dart';
++import '../features/ride_search/presentation/provider/booking_provider.dart';
++import '../features/ride_search/presentation/provider/ride_search_provider.dart';
++
++// ------------------- AUTH -------------------
++import '../core/platform/secure_kv_store.dart';
++import '../services/flutter_secure_kv_store.dart';
++import '../features/auth/data/datasources/auth_local_data_source.dart';
++import '../features/auth/data/datasources/auth_remote_data_source.dart';
++import '../features/auth/data/datasources/supabase_auth_remote_data_source.dart';
++import '../features/auth/data/datasources/auth_mock_data_source.dart';
++import '../features/auth/data/repositories/auth_repository_impl.dart';
++import '../features/auth/application/adapters/auth_session_repository.dart';
++import '../features/auth/data/strategies/auth_strategy_registry.dart';
++import '../features/auth/data/strategies/email_password_signin_strategy.dart';
++import '../features/auth/data/strategies/email_password_signup_strategy.dart';
++import '../features/auth/data/strategies/otp_verify_strategy.dart';
++import '../features/auth/data/strategies/oauth_signin_strategy.dart';
++import '../features/auth/presentation/providers/auth_provider.dart';
++
++// ------------------- VEHICLE -------------------
++import '../features/vehicle/data/repositories/vehicle_repository_memory.dart';
++import '../features/vehicle/presentation/providers/vehicle_provider.dart';
++
++// ------------------- POST RIDE -------------------
++import '../features/post_ride/data/repositories/ride_draft_repository_memory.dart';
++import '../features/post_ride/data/repositories/route_repository_mock.dart';
++import '../features/post_ride/data/repositories/ride_publish_repository_mock.dart';
++
++import '../features/post_ride/application/usecases/create_new_draft_usecase.dart';
++import '../features/post_ride/application/usecases/save_draft_usecase.dart';
++import '../features/post_ride/application/usecases/get_route_options_usecase.dart';
++import '../features/post_ride/application/usecases/publish_ride_usecase.dart';
++import '../features/post_ride/application/usecases/publish_return_ride_usecase.dart';
++import '../features/post_ride/application/usecases/ensure_publish_eligibility_usecase.dart';
++
++import '../features/post_ride/presentation/providers/post_ride_draft_provider.dart';
++import '../features/post_ride/presentation/providers/post_ride_publish_provider.dart';
++
++/// Minimal DI module for Provider-based apps.
++/// Keeps `main.dart` small and prevents it from growing into a wiring monolith.
++class AppDI {
++  static List<SingleChildWidget> providers() {
++    // ---------------------------------------------------------------------------
++    // DATA LAYER (Repos + Datasources)
++    // ---------------------------------------------------------------------------
++
++        // Auth wiring (DIP-friendly)
++    final SecureKvStore secureKvStore = FlutterSecureKvStore();
++    final authLocalDataSource = AuthLocalDataSource(secureKvStore);
++    final AuthRemoteDataSource authRemoteDataSource = () {
++      try {
++        return SupabaseAuthRemoteDataSource(Supabase.instance.client);
++      } catch (_) {
++        // Supabase not initialised (e.g., tests) – fall back to mock.
++        return MockAuthRemoteDataSource();
++      }
++    }();
++    final authStrategies = [
++      EmailPasswordSignInStrategy(authRemoteDataSource),
++      EmailPasswordSignUpStrategy(authRemoteDataSource),
++      OtpVerifyStrategy(authRemoteDataSource),
++      OAuthSignInStrategy(),
++    ];
++    final authRegistry = AuthStrategyRegistry(authStrategies);
++    final authRepo = AuthRepositoryImpl(
++      remote: authRemoteDataSource,
++      local: authLocalDataSource,
++      registry: authRegistry,
++    );
++
++    final SessionRepository sessionRepository = AuthSessionRepository(authRepo);
++
++final rideRemote = RideRemoteDataSource();
++    final rideRepo = RideRepositoryImpl(rideRemote);
++
++    final vehicleRepo = VehicleRepositoryMemory();
++
++    final draftRepo = RideDraftRepositoryMemory();
++    final routeRepo = RouteRepositoryMock();
++    final publishRepo = RidePublishRepositoryMock();
++final myRidesRemote = MyRidesRemoteDataSource();
++final myRidesRepo = MyRidesRepositoryImpl(myRidesRemote);
++
++final getMyRidesUseCase = GetMyRidesUseCase(myRidesRepo);
++final getArchivedRidesUseCase = GetArchivedRidesUseCase(myRidesRepo);
++final getMyRideDetailsUseCase = GetMyRideDetailsUseCase(myRidesRepo);
++
++    // ---------------------------------------------------------------------------
++    // USE CASES
++    // ---------------------------------------------------------------------------
++
++    final searchRidesUseCase = SearchRidesUseCase(rideRepo);
++    final bookRideUseCase = BookRideUseCase(rideRepo);
++
++    final createDraftUseCase = CreateNewDraftUseCase(draftRepo);
++    final saveDraftUseCase = SaveDraftUseCase(draftRepo);
++    final getRoutesUseCase = GetRouteOptionsUseCase(routeRepo);
++    final publishRideUseCase = PublishRideUseCase(publishRepo);
++    final publishReturnRideUseCase = PublishReturnRideUseCase(publishRepo);
++    final ensurePublishEligibilityUseCase = EnsurePublishEligibilityUseCase(authRepo, vehicleRepo);
++
++    // Platform services
++    final ChatLauncher chatLauncher = UrlLauncherChatLauncher();
++
++    // ---------------------------------------------------------------------------
++    // PROVIDERS
++    // ---------------------------------------------------------------------------
++    return [
++      // Auth
++      Provider<AuthRepositoryImpl>(
++        create: (_) => authRepo,
++        dispose: (_, repo) => repo.dispose(),
++      ),
++      Provider<SessionRepository>(
++        create: (_) => sessionRepository,
++      ),
++      ChangeNotifierProvider<SessionProvider>(
++        create: (ctx) => SessionProvider(ctx.read<SessionRepository>()),
++      ),
++      ChangeNotifierProvider<AuthProvider>(
++        create: (ctx) => AuthProvider(ctx.read<AuthRepositoryImpl>()),
++      ),
++
++      // Ride Search
++      ChangeNotifierProvider<RideSearchProvider>(
++        create: (_) => RideSearchProvider(searchRidesUseCase),
++      ),
++      ChangeNotifierProvider<BookingProvider>(
++        create: (_) => BookingProvider(bookRideUseCase),
++      ),
++
++      ChangeNotifierProvider<MyRidesProvider>(
++        create: (_) => MyRidesProvider(
++          getMyRidesUseCase,
++          getArchivedRidesUseCase,
++          getMyRideDetailsUseCase,
++        ),
++      ),
++
++      // Vehicle
++      ChangeNotifierProvider<VehicleProvider>(
++        create: (_) => VehicleProvider(vehicleRepo)..refresh(),
++      ),
++
++      // Post Ride
++      Provider<EnsurePublishEligibilityUseCase>(
++        create: (_) => ensurePublishEligibilityUseCase,
++      ),
++      ChangeNotifierProvider<PostRideDraftProvider>(
++        create: (_) => PostRideDraftProvider(
++          createDraftUseCase,
++          saveDraftUseCase,
++          getRoutesUseCase,
++        ),
++      ),
++      ChangeNotifierProvider<PostRidePublishProvider>(
++        create: (_) => PostRidePublishProvider(
++          publishRideUseCase,
++          publishReturnRideUseCase,
++        ),
++      ),
++
++      // Platform boundary services
++      Provider<ChatLauncher>(
++        create: (_) => chatLauncher,
++      ),
++    ];
++  }
++}
+diff --git a/lib/features/auth/application/adapters/auth_session_repository.dart b/lib/features/auth/application/adapters/auth_session_repository.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/features/auth/application/adapters/auth_session_repository.dart
+@@ -0,0 +1,34 @@
++import '../../../../core/session/session_repository.dart';
++import '../../../../core/session/session_user.dart';
++import '../../domain/entities/auth_user.dart';
++import '../../domain/repositories/auth_repository.dart';
++
++class AuthSessionRepository implements SessionRepository {
++  final AuthRepository _authRepository;
++
++  AuthSessionRepository(this._authRepository);
++
++  @override
++  Stream<SessionUser?> get authStateChanges =>
++      _authRepository.authStateChanges.map(_map);
++
++  @override
++  Future<SessionUser?> getCurrentUser() async {
++    final u = await _authRepository.getCurrentUser();
++    return _map(u);
++  }
++
++  @override
++  Future<void> signOut() => _authRepository.signOut();
++
++  SessionUser? _map(AuthUser? user) {
++    if (user == null) return null;
++    return SessionUser(
++      id: user.id,
++      email: user.email,
++      phone: user.phone,
++      displayName: user.name,
++    );
++  }
++}
++
+diff --git a/lib/features/auth/application/usecases/get_current_user_usecase.dart b/lib/features/auth/application/usecases/get_current_user_usecase.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/features/auth/application/usecases/get_current_user_usecase.dart
+@@ -0,0 +1,19 @@
++import '../../../../core/error/failure_mapper.dart';
++import '../../../../core/result/result.dart';
++import '../../domain/entities/auth_user.dart';
++import '../../domain/repositories/auth_repository.dart';
++
++class GetCurrentUserUseCase {
++  final AuthRepository _repository;
++  GetCurrentUserUseCase(this._repository);
++
++  Future<Result<AuthUser?>> call() async {
++    try {
++      final user = await _repository.getCurrentUser();
++      return Success(user);
++    } catch (e, st) {
++      return FailureResult(FailureMapper.from(e, st));
++    }
++  }
++}
++
+diff --git a/lib/features/auth/application/usecases/login_usecase.dart b/lib/features/auth/application/usecases/login_usecase.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/features/auth/application/usecases/login_usecase.dart
+@@ -0,0 +1,24 @@
++import '../../../../core/error/failure_mapper.dart';
++import '../../../../core/result/result.dart';
++import '../../domain/entities/auth_credential.dart';
++import '../../domain/entities/auth_user.dart';
++import '../../domain/repositories/auth_repository.dart';
++
++class LoginUseCase {
++  final AuthRepository _repository;
++  LoginUseCase(this._repository);
++
++  Future<Result<AuthUser>> call({
++    required String email,
++    required String password,
++  }) async {
++    try {
++      final user =
++          await _repository.signIn(EmailPasswordLoginCredential(email, password));
++      return Success(user);
++    } catch (e, st) {
++      return FailureResult(FailureMapper.from(e, st));
++    }
++  }
++}
++
+diff --git a/lib/features/auth/application/usecases/sign_out_usecase.dart b/lib/features/auth/application/usecases/sign_out_usecase.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/features/auth/application/usecases/sign_out_usecase.dart
+@@ -0,0 +1,18 @@
++import '../../../../core/error/failure_mapper.dart';
++import '../../../../core/result/result.dart';
++import '../../domain/repositories/auth_repository.dart';
++
++class SignOutUseCase {
++  final AuthRepository _repository;
++  SignOutUseCase(this._repository);
++
++  Future<Result<void>> call() async {
++    try {
++      await _repository.signOut();
++      return const Success(null);
++    } catch (e, st) {
++      return FailureResult(FailureMapper.from(e, st));
++    }
++  }
++}
++
+diff --git a/lib/features/auth/application/usecases/signup_usecase.dart b/lib/features/auth/application/usecases/signup_usecase.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/features/auth/application/usecases/signup_usecase.dart
+@@ -0,0 +1,25 @@
++import '../../../../core/error/failure_mapper.dart';
++import '../../../../core/result/result.dart';
++import '../../domain/entities/auth_credential.dart';
++import '../../domain/repositories/auth_repository.dart';
++
++class SignupUseCase {
++  final AuthRepository _repository;
++  SignupUseCase(this._repository);
++
++  Future<Result<void>> call({
++    required String name,
++    required String email,
++    required String password,
++  }) async {
++    try {
++      await _repository.signUp(
++        EmailPasswordSignupCredential(name: name, email: email, password: password),
++      );
++      return const Success(null);
++    } catch (e, st) {
++      return FailureResult(FailureMapper.from(e, st));
++    }
++  }
++}
++
+diff --git a/lib/features/auth/application/usecases/verify_otp_usecase.dart b/lib/features/auth/application/usecases/verify_otp_usecase.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/features/auth/application/usecases/verify_otp_usecase.dart
+@@ -0,0 +1,23 @@
++import '../../../../core/error/failure_mapper.dart';
++import '../../../../core/result/result.dart';
++import '../../domain/entities/auth_credential.dart';
++import '../../domain/entities/auth_user.dart';
++import '../../domain/repositories/auth_repository.dart';
++
++class VerifyOtpUseCase {
++  final AuthRepository _repository;
++  VerifyOtpUseCase(this._repository);
++
++  Future<Result<AuthUser>> call({
++    required String email,
++    required String otp,
++  }) async {
++    try {
++      final user = await _repository.verifyOtp(OtpVerifyCredential(email, otp));
++      return Success(user);
++    } catch (e, st) {
++      return FailureResult(FailureMapper.from(e, st));
++    }
++  }
++}
++
+diff --git a/lib/features/auth/data/datasources/auth_mock_data_source.dart b/lib/features/auth/data/datasources/auth_mock_data_source.dart
+--- a/lib/features/auth/data/datasources/auth_mock_data_source.dart
++++ b/lib/features/auth/data/datasources/auth_mock_data_source.dart
+@@ -1,44 +1,44 @@
+-import 'auth_remote_data_source.dart';
+-import '../models/auth_user_model.dart';
+-
+-/// Mock remote implementation used for MVP wiring.
+-/// Replace with SOAP/REST implementation later without touching domain/presentation.
+-class MockAuthRemoteDataSource implements AuthRemoteDataSource {
+-  @override
+-  Stream<AuthUserModel?> get authStateChanges => const Stream<AuthUserModel?>.empty();
+-
+-  @override
+-  Future<AuthUserModel> login(String email, String password) async {
+-    await Future.delayed(const Duration(milliseconds: 500));
+-    return AuthUserModel(
+-      id: 'u123',
+-      email: email,
+-      name: 'John Doe',
+-    );
+-  }
+-
+-  @override
+-  Future<void> signup({
+-    required String name,
+-    required String email,
+-    required String password,
+-  }) async {
+-    await Future.delayed(const Duration(milliseconds: 500));
+-    // In a real app, this triggers OTP send.
+-  }
+-
+-  @override
+-  Future<AuthUserModel> verifyOtp(String email, String otp) async {
+-    await Future.delayed(const Duration(milliseconds: 500));
+-    return AuthUserModel(
+-      id: 'u456',
+-      email: email,
+-      name: 'New User',
+-    );
+-  }
+-
+-  @override
+-  Future<void> logout() async {
+-    await Future.delayed(const Duration(milliseconds: 100));
+-  }
+-}
++import 'auth_remote_data_source.dart';
++import '../models/auth_user_model.dart';
++
++/// Mock remote implementation used for MVP wiring.
++/// Replace with SOAP/REST implementation later without touching domain/presentation.
++class MockAuthRemoteDataSource implements AuthRemoteDataSource {
++  @override
++  Stream<AuthUserModel?> get authStateChanges => const Stream<AuthUserModel?>.empty();
++
++  @override
++  Future<AuthUserModel> login(String email, String password) async {
++    await Future.delayed(const Duration(milliseconds: 500));
++    return AuthUserModel(
++      id: 'u123',
++      email: email,
++      name: 'John Doe',
++    );
++  }
++
++  @override
++  Future<void> signup({
++    required String name,
++    required String email,
++    required String password,
++  }) async {
++    await Future.delayed(const Duration(milliseconds: 500));
++    // In a real app, this triggers OTP send.
++  }
++
++  @override
++  Future<AuthUserModel> verifyOtp(String email, String otp) async {
++    await Future.delayed(const Duration(milliseconds: 500));
++    return AuthUserModel(
++      id: 'u456',
++      email: email,
++      name: 'New User',
++    );
++  }
++
++  @override
++  Future<void> logout() async {
++    await Future.delayed(const Duration(milliseconds: 100));
++  }
++}
+diff --git a/lib/features/auth/data/datasources/auth_remote_data_source.dart b/lib/features/auth/data/datasources/auth_remote_data_source.dart
+--- a/lib/features/auth/data/datasources/auth_remote_data_source.dart
++++ b/lib/features/auth/data/datasources/auth_remote_data_source.dart
+@@ -1,28 +1,31 @@
+-import '../models/auth_user_model.dart';
+-
+-abstract class AuthRemoteDataSource {
+-  /// Emits auth user changes as observed by the remote auth provider.
+-  ///
+-  /// - Emits a user when a session becomes available
+-  /// - Emits null when the session ends / user signs out
+-  Stream<AuthUserModel?> get authStateChanges;
+-
+-  Future<AuthUserModel> login(String email, String password);
+-
+-  /// Starts signup flow.
+-  ///
+-  /// Depending on provider configuration, this may:
+-  /// - create a session immediately, or
+-  /// - send a verification email / OTP and require [verifyOtp].
+-  Future<void> signup({
+-    required String name,
+-    required String email,
+-    required String password,
+-  });
+-
+-  /// Completes OTP / verification step (when enabled).
+-  Future<AuthUserModel> verifyOtp(String email, String otp);
+-
+-  /// Signs out from the remote provider.
+-  Future<void> logout();
+-}
++import '../models/auth_user_model.dart';
++
++abstract class AuthRemoteDataSource {
++  /// Emits auth user changes as observed by the remote auth provider.
++  ///
++  /// - Emits a user when a session becomes available
++  /// - Emits null when the session ends / user signs out
++  Stream<AuthUserModel?> get authStateChanges;
++
++  /// Returns current remote user if a valid session exists.
++  Future<AuthUserModel?> getCurrentUser();
++
++  Future<AuthUserModel> login(String email, String password);
++
++  /// Starts signup flow.
++  ///
++  /// Depending on provider configuration, this may:
++  /// - create a session immediately, or
++  /// - send a verification email / OTP and require [verifyOtp].
++  Future<void> signup({
++    required String name,
++    required String email,
++    required String password,
++  });
++
++  /// Completes OTP / verification step (when enabled).
++  Future<AuthUserModel> verifyOtp(String email, String otp);
++
++  /// Signs out from the remote provider.
++  Future<void> logout();
++}
+diff --git a/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart b/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart
+--- a/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart
++++ b/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart
+@@ -1,119 +1,131 @@
+-import 'package:supabase_flutter/supabase_flutter.dart';
+-
+-import '../models/auth_user_model.dart';
+-import 'auth_remote_data_source.dart';
+-
+-/// Supabase-backed implementation of [AuthRemoteDataSource].
+-///
+-/// Keeps Supabase dependency isolated to the data layer (Clean Architecture + DIP).
+-class SupabaseAuthRemoteDataSource implements AuthRemoteDataSource {
+-  final SupabaseClient _client;
+-
+-  SupabaseAuthRemoteDataSource(this._client);
+-
+-  @override
+-  Stream<AuthUserModel?> get authStateChanges =>
+-      _client.auth.onAuthStateChange.map((state) {
+-        final user = state.session?.user ?? _client.auth.currentUser;
+-        return user == null ? null : _mapUser(user);
+-      });
+-
+-  @override
+-  Future<AuthUserModel> login(String email, String password) async {
+-    final res = await _client.auth.signInWithPassword(
+-      email: email,
+-      password: password,
+-    );
+-
+-    final user = res.user;
+-    if (user == null) {
+-      throw Exception('Login failed. Please check your credentials.');
+-    }
+-    return _mapUser(user);
+-  }
+-
+-  @override
+-  Future<void> signup({
+-    required String name,
+-    required String email,
+-    required String password,
+-  }) async {
+-    await _client.auth.signUp(
+-      email: email,
+-      password: password,
+-      data: <String, dynamic>{
+-        'name': name,
+-      },
+-    );
+-  }
+-
+-  @override
+-  Future<AuthUserModel> verifyOtp(String email, String otp) async {
+-    // Supabase supports multiple OTP types depending on project auth settings.
+-    // We try 'signup' first, then fall back to 'magiclink' when present.
+-    try {
+-      return await _verifyOtp(email: email, otp: otp, typeName: 'signup');
+-    } catch (_) {
+-      return await _verifyOtp(email: email, otp: otp, typeName: 'magiclink');
+-    }
+-  }
+-
+-  Future<AuthUserModel> _verifyOtp({
+-    required String email,
+-    required String otp,
+-    required String typeName,
+-  }) async {
+-    final type = _otpTypeByName(typeName);
+-
+-    final res = await _client.auth.verifyOTP(
+-      email: email,
+-      token: otp,
+-      type: type,
+-    );
+-
+-    final user = res.user;
+-    if (user == null) {
+-      throw Exception('OTP verification failed.');
+-    }
+-    return _mapUser(user);
+-  }
+-
+-  OtpType _otpTypeByName(String name) {
+-    for (final t in OtpType.values) {
+-      if (t.name == name) return t;
+-    }
+-    // Fallback (keeps compilation safe across Supabase SDK versions).
+-    return OtpType.values.first;
+-  }
+-
+-  AuthUserModel _mapUser(User user) {
+-    final email = user.email ?? '';
+-    final meta = user.userMetadata ?? const <String, dynamic>{};
+-
+-    final name = (meta['name'] ??
+-            meta['full_name'] ??
+-            meta['display_name'] ??
+-            meta['username'] ??
+-            '')
+-        .toString()
+-        .trim();
+-
+-    final phone = (user.phone ?? meta['phone']?.toString())?.trim();
+-    final photoUrl = (meta['avatar_url'] ?? meta['photo_url'] ?? meta['photoUrl'])
+-        ?.toString()
+-        .trim();
+-
+-    return AuthUserModel(
+-      id: user.id,
+-      email: email,
+-      name: name.isNotEmpty ? name : (email.isNotEmpty ? email : 'User'),
+-      phoneNumber: phone?.isEmpty == true ? null : phone,
+-      photoUrl: photoUrl?.isEmpty == true ? null : photoUrl,
+-    );
+-  }
+-
+-  @override
+-  Future<void> logout() async {
+-    await _client.auth.signOut();
+-  }
+-}
++import 'package:supabase_flutter/supabase_flutter.dart';
++
++import '../models/auth_user_model.dart';
++import 'auth_remote_data_source.dart';
++
++/// Supabase-backed implementation of [AuthRemoteDataSource].
++///
++/// Keeps Supabase dependency isolated to the data layer (Clean Architecture + DIP).
++class SupabaseAuthRemoteDataSource implements AuthRemoteDataSource {
++  final SupabaseClient _client;
++
++  SupabaseAuthRemoteDataSource(this._client);
++
++  @override
++  Stream<AuthUserModel?> get authStateChanges =>
++      _client.auth.onAuthStateChange.map((state) {
++        final user = state.session?.user ?? _client.auth.currentUser;
++        return user == null ? null : _mapUser(user);
++      });
++
++@override
++Future<AuthUserModel?> getCurrentUser() async {
++  final user = _client.auth.currentUser;
++  if (user == null) return null;
++  return AuthUserModel(
++    id: user.id,
++    email: user.email ?? '',
++    name: user.userMetadata?['name'] as String? ?? '',
++    phone: user.phone,
++  );
++}
++
++  @override
++  Future<AuthUserModel> login(String email, String password) async {
++    final res = await _client.auth.signInWithPassword(
++      email: email,
++      password: password,
++    );
++
++    final user = res.user;
++    if (user == null) {
++      throw Exception('Login failed. Please check your credentials.');
++    }
++    return _mapUser(user);
++  }
++
++  @override
++  Future<void> signup({
++    required String name,
++    required String email,
++    required String password,
++  }) async {
++    await _client.auth.signUp(
++      email: email,
++      password: password,
++      data: <String, dynamic>{
++        'name': name,
++      },
++    );
++  }
++
++  @override
++  Future<AuthUserModel> verifyOtp(String email, String otp) async {
++    // Supabase supports multiple OTP types depending on project auth settings.
++    // We try 'signup' first, then fall back to 'magiclink' when present.
++    try {
++      return await _verifyOtp(email: email, otp: otp, typeName: 'signup');
++    } catch (_) {
++      return await _verifyOtp(email: email, otp: otp, typeName: 'magiclink');
++    }
++  }
++
++  Future<AuthUserModel> _verifyOtp({
++    required String email,
++    required String otp,
++    required String typeName,
++  }) async {
++    final type = _otpTypeByName(typeName);
++
++    final res = await _client.auth.verifyOTP(
++      email: email,
++      token: otp,
++      type: type,
++    );
++
++    final user = res.user;
++    if (user == null) {
++      throw Exception('OTP verification failed.');
++    }
++    return _mapUser(user);
++  }
++
++  OtpType _otpTypeByName(String name) {
++    for (final t in OtpType.values) {
++      if (t.name == name) return t;
++    }
++    // Fallback (keeps compilation safe across Supabase SDK versions).
++    return OtpType.values.first;
++  }
++
++  AuthUserModel _mapUser(User user) {
++    final email = user.email ?? '';
++    final meta = user.userMetadata ?? const <String, dynamic>{};
++
++    final name = (meta['name'] ??
++            meta['full_name'] ??
++            meta['display_name'] ??
++            meta['username'] ??
++            '')
++        .toString()
++        .trim();
++
++    final phone = (user.phone ?? meta['phone']?.toString())?.trim();
++    final photoUrl = (meta['avatar_url'] ?? meta['photo_url'] ?? meta['photoUrl'])
++        ?.toString()
++        .trim();
++
++    return AuthUserModel(
++      id: user.id,
++      email: email,
++      name: name.isNotEmpty ? name : (email.isNotEmpty ? email : 'User'),
++      phoneNumber: phone?.isEmpty == true ? null : phone,
++      photoUrl: photoUrl?.isEmpty == true ? null : photoUrl,
++    );
++  }
++
++  @override
++  Future<void> logout() async {
++    await _client.auth.signOut();
++  }
++}
+diff --git a/lib/features/auth/data/repositories/auth_repository_impl.dart b/lib/features/auth/data/repositories/auth_repository_impl.dart
+--- a/lib/features/auth/data/repositories/auth_repository_impl.dart
++++ b/lib/features/auth/data/repositories/auth_repository_impl.dart
+@@ -1,96 +1,121 @@
+-import 'dart:async';
+-
+-import '../../domain/entities/auth_user.dart';
+-import '../../domain/repositories/auth_repository.dart';
+-import '../datasources/auth_local_data_source.dart';
+-import '../datasources/auth_remote_data_source.dart';
+-import '../models/auth_user_model.dart';
+-
+-class AuthRepositoryImpl implements AuthRepository {
+-  final AuthRemoteDataSource _remote;
+-  final AuthLocalDataSource _local;
+-
+-  AuthUser? _currentUser;
+-  final StreamController<AuthUser?> _controller =
+-      StreamController<AuthUser?>.broadcast();
+-
+-  StreamSubscription<AuthUserModel?>? _remoteSub;
+-
+-  AuthRepositoryImpl({
+-    required AuthRemoteDataSource remote,
+-    required AuthLocalDataSource local,
+-  })  : _remote = remote,
+-        _local = local {
+-    // Keep repository state consistent with remote provider session changes.
+-    _remoteSub = _remote.authStateChanges.listen(
+-      (model) async {
+-        try {
+-          if (model == null) {
+-            await _local.clear();
+-            _currentUser = null;
+-            _controller.add(null);
+-            return;
+-          }
+-          await _persistAndEmit(model);
+-        } catch (_) {
+-          // Ignore remote stream errors to avoid crashing the app.
+-        }
+-      },
+-    );
+-  }
+-
+-  @override
+-  Stream<AuthUser?> get authStateChanges => _controller.stream;
+-
+-  @override
+-  Future<AuthUser?> getCurrentUser() async {
+-    final cached = await _local.getUser();
+-    _currentUser = cached?.toEntity();
+-    return _currentUser;
+-  }
+-
+-  @override
+-  Future<AuthUser> login(String email, String password) async {
+-    final model = await _remote.login(email, password);
+-    await _persistAndEmit(model);
+-    return model.toEntity();
+-  }
+-
+-  @override
+-  Future<void> signup({
+-    required String name,
+-    required String email,
+-    required String password,
+-  }) async {
+-    await _remote.signup(name: name, email: email, password: password);
+-  }
+-
+-  @override
+-  Future<AuthUser> verifyOtp(String email, String otp) async {
+-    final model = await _remote.verifyOtp(email, otp);
+-    await _persistAndEmit(model);
+-    return model.toEntity();
+-  }
+-
+-  @override
+-  Future<void> logout() async {
+-    // Remote sign-out first (may trigger remote authStateChanges).
+-    await _remote.logout();
+-
+-    await _local.clear();
+-    _currentUser = null;
+-    _controller.add(null);
+-  }
+-
+-  Future<void> _persistAndEmit(AuthUserModel model) async {
+-    await _local.saveUser(model);
+-    _currentUser = model.toEntity();
+-    _controller.add(_currentUser);
+-  }
+-
+-  /// Not part of domain abstraction; owned by composition root (DI).
+-  void dispose() {
+-    _remoteSub?.cancel();
+-    _controller.close();
+-  }
+-}
++import 'dart:async';
++
++import '../../domain/entities/auth_credential.dart';
++import '../../domain/entities/auth_user.dart';
++import '../../domain/repositories/auth_repository.dart';
++import '../datasources/auth_local_data_source.dart';
++import '../datasources/auth_remote_data_source.dart';
++import '../models/auth_user_model.dart';
++import '../strategies/auth_strategy_registry.dart';
++
++class AuthRepositoryImpl implements AuthRepository {
++  final AuthRemoteDataSource _remote;
++  final AuthLocalDataSource _local;
++  final AuthStrategyRegistry _registry;
++
++  AuthUser? _currentUser;
++  final StreamController<AuthUser?> _controller =
++      StreamController<AuthUser?>.broadcast();
++
++  StreamSubscription<AuthUserModel?>? _remoteSub;
++
++  AuthRepositoryImpl({
++    required AuthRemoteDataSource remote,
++    required AuthLocalDataSource local,
++    required AuthStrategyRegistry registry,
++  })  : _remote = remote,
++        _local = local,
++        _registry = registry {
++    // Keep repository state consistent with remote provider session changes.
++    _remoteSub = _remote.authStateChanges.listen(
++      (model) async {
++        try {
++          if (model == null) {
++            await _local.clear();
++            _currentUser = null;
++            _controller.add(null);
++            return;
++          }
++          await _persistAndEmit(model);
++        } catch (_) {
++          // Ignore remote stream errors to avoid crashing the app.
++        }
++      },
++    );
++  }
++
++  @override
++  Stream<AuthUser?> get authStateChanges => _controller.stream;
++
++  @override
++  Future<AuthUser?> getCurrentUser() async {
++    final cached = await _local.getUser();
++    _currentUser = cached?.toEntity();
++    return _currentUser;
++  }
++
++  @override
++  Future<AuthUser> signIn(AuthCredential credential) async {
++    // Strategy may throw; upper layers convert to Failure.
++    final user = await _registry.signIn(credential);
++    // For email/password login: remote already emitted authStateChanges, but persist anyway for consistency.
++    if (user == null) {
++      throw StateError('Sign-in did not return a user for ${credential.runtimeType}');
++    }
++    // Persist from remote current user if available; otherwise persist minimal.
++    final cached = await _local.getUser();
++    if (cached == null) {
++      // If datasource returned entity without model, we still want local session for fast bootstrap.
++      // Keep it minimal: store via remote current user model by calling remote.getCurrentUser().
++      final model = await _remote.getCurrentUser();
++      if (model != null) {
++        await _persistAndEmit(model);
++        return model.toEntity();
++      }
++    }
++    _currentUser = user;
++    _controller.add(user);
++    return user;
++  }
++
++  @override
++  Future<void> signUp(AuthCredential credential) async {
++    await _registry.signUp(credential);
++  }
++
++  @override
++  Future<AuthUser> verifyOtp(OtpVerifyCredential credential) async {
++    final user = await _registry.signIn(credential);
++    if (user == null) {
++      throw StateError('OTP verify did not return a user');
++    }
++    final model = await _remote.getCurrentUser();
++    if (model != null) {
++      await _persistAndEmit(model);
++    } else {
++      _currentUser = user;
++      _controller.add(user);
++    }
++    return user;
++  }
++
++  @override
++  Future<void> signOut() async {
++    await _remote.logout();
++    await _local.clear();
++    _currentUser = null;
++    _controller.add(null);
++  }
++
++  Future<void> _persistAndEmit(AuthUserModel model) async {
++    await _local.saveUser(model);
++    _currentUser = model.toEntity();
++    _controller.add(_currentUser);
++  }
++
++  void dispose() {
++    _remoteSub?.cancel();
++    _controller.close();
++  }
++}
++
+diff --git a/lib/features/auth/data/strategies/auth_strategy.dart b/lib/features/auth/data/strategies/auth_strategy.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/features/auth/data/strategies/auth_strategy.dart
+@@ -0,0 +1,11 @@
++import '../../domain/entities/auth_credential.dart';
++import '../../domain/entities/auth_user.dart';
++
++abstract class AuthStrategy<T extends AuthCredential> {
++  bool canHandle(AuthCredential credential);
++  Future<AuthUser?> signIn(T credential);
++
++  /// Optional for signup flows.
++  Future<void> signUp(T credential) async {}
++}
++
+diff --git a/lib/features/auth/data/strategies/auth_strategy_registry.dart b/lib/features/auth/data/strategies/auth_strategy_registry.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/features/auth/data/strategies/auth_strategy_registry.dart
+@@ -0,0 +1,29 @@
++import '../../domain/entities/auth_credential.dart';
++import '../../domain/entities/auth_user.dart';
++import 'auth_strategy.dart';
++
++class AuthStrategyRegistry {
++  final List<AuthStrategy> _strategies;
++
++  AuthStrategyRegistry(this._strategies);
++
++  AuthStrategy<T> _get<T extends AuthCredential>(T credential) {
++    for (final s in _strategies) {
++      if (s.canHandle(credential)) {
++        return s as AuthStrategy<T>;
++      }
++    }
++    throw StateError('No auth strategy registered for ${credential.runtimeType}');
++  }
++
++  Future<AuthUser?> signIn(AuthCredential credential) async {
++    final s = _get(credential);
++    return s.signIn(credential as dynamic);
++  }
++
++  Future<void> signUp(AuthCredential credential) async {
++    final s = _get(credential);
++    return s.signUp(credential as dynamic);
++  }
++}
++
+diff --git a/lib/features/auth/data/strategies/email_password_signin_strategy.dart b/lib/features/auth/data/strategies/email_password_signin_strategy.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/features/auth/data/strategies/email_password_signin_strategy.dart
+@@ -0,0 +1,23 @@
++import '../../domain/entities/auth_credential.dart';
++import '../../domain/entities/auth_user.dart';
++import '../datasources/auth_remote_data_source.dart';
++import '../models/auth_user_model.dart';
++import 'auth_strategy.dart';
++
++class EmailPasswordSignInStrategy
++    implements AuthStrategy<EmailPasswordLoginCredential> {
++  final AuthRemoteDataSource _remote;
++  EmailPasswordSignInStrategy(this._remote);
++
++  @override
++  bool canHandle(AuthCredential credential) =>
++      credential is EmailPasswordLoginCredential;
++
++  @override
++  Future<AuthUser?> signIn(EmailPasswordLoginCredential credential) async {
++    final AuthUserModel model =
++        await _remote.login(credential.email, credential.password);
++    return model.toEntity();
++  }
++}
++
+diff --git a/lib/features/auth/data/strategies/email_password_signup_strategy.dart b/lib/features/auth/data/strategies/email_password_signup_strategy.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/features/auth/data/strategies/email_password_signup_strategy.dart
+@@ -0,0 +1,30 @@
++import '../../domain/entities/auth_credential.dart';
++import '../../domain/entities/auth_user.dart';
++import '../datasources/auth_remote_data_source.dart';
++import 'auth_strategy.dart';
++
++class EmailPasswordSignUpStrategy
++    implements AuthStrategy<EmailPasswordSignupCredential> {
++  final AuthRemoteDataSource _remote;
++  EmailPasswordSignUpStrategy(this._remote);
++
++  @override
++  bool canHandle(AuthCredential credential) =>
++      credential is EmailPasswordSignupCredential;
++
++  @override
++  Future<AuthUser?> signIn(EmailPasswordSignupCredential credential) async {
++    // Not a sign-in; signup returns void and requires OTP.
++    return null;
++  }
++
++  @override
++  Future<void> signUp(EmailPasswordSignupCredential credential) async {
++    await _remote.signup(
++      name: credential.name,
++      email: credential.email,
++      password: credential.password,
++    );
++  }
++}
++
+diff --git a/lib/features/auth/data/strategies/oauth_signin_strategy.dart b/lib/features/auth/data/strategies/oauth_signin_strategy.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/features/auth/data/strategies/oauth_signin_strategy.dart
+@@ -0,0 +1,16 @@
++import '../../../../core/error/failure.dart';
++import '../../domain/entities/auth_credential.dart';
++import '../../domain/entities/auth_user.dart';
++import 'auth_strategy.dart';
++
++class OAuthSignInStrategy implements AuthStrategy<OAuthSignInCredential> {
++  @override
++  bool canHandle(AuthCredential credential) => credential is OAuthSignInCredential;
++
++  @override
++  Future<AuthUser?> signIn(OAuthSignInCredential credential) async {
++    // Wire Supabase signInWithOAuth later.
++    throw const NotImplementedFailure(debugMessage: 'OAuth sign-in not wired yet');
++  }
++}
++
+diff --git a/lib/features/auth/data/strategies/otp_verify_strategy.dart b/lib/features/auth/data/strategies/otp_verify_strategy.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/features/auth/data/strategies/otp_verify_strategy.dart
+@@ -0,0 +1,21 @@
++import '../../domain/entities/auth_credential.dart';
++import '../../domain/entities/auth_user.dart';
++import '../datasources/auth_remote_data_source.dart';
++import '../models/auth_user_model.dart';
++import 'auth_strategy.dart';
++
++class OtpVerifyStrategy implements AuthStrategy<OtpVerifyCredential> {
++  final AuthRemoteDataSource _remote;
++  OtpVerifyStrategy(this._remote);
++
++  @override
++  bool canHandle(AuthCredential credential) => credential is OtpVerifyCredential;
++
++  @override
++  Future<AuthUser?> signIn(OtpVerifyCredential credential) async {
++    final AuthUserModel model =
++        await _remote.verifyOtp(credential.email, credential.otp);
++    return model.toEntity();
++  }
++}
++
+diff --git a/lib/features/auth/domain/entities/auth_credential.dart b/lib/features/auth/domain/entities/auth_credential.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/features/auth/domain/entities/auth_credential.dart
+@@ -0,0 +1,48 @@
++enum OAuthProvider { google, apple, linkedin }
++
++enum OtpChannel { whatsapp, sms, email }
++
++sealed class AuthCredential {
++  const AuthCredential();
++}
++
++class EmailPasswordLoginCredential extends AuthCredential {
++  final String email;
++  final String password;
++  const EmailPasswordLoginCredential(this.email, this.password);
++}
++
++class EmailPasswordSignupCredential extends AuthCredential {
++  final String name;
++  final String email;
++  final String password;
++  const EmailPasswordSignupCredential({
++    required this.name,
++    required this.email,
++    required this.password,
++  });
++}
++
++class OtpVerifyCredential extends AuthCredential {
++  final String email;
++  final String otp;
++  const OtpVerifyCredential(this.email, this.otp);
++}
++
++class OAuthSignInCredential extends AuthCredential {
++  final OAuthProvider provider;
++  const OAuthSignInCredential(this.provider);
++}
++
++class PhoneOtpStartCredential extends AuthCredential {
++  final String phoneE164;
++  final OtpChannel preferredChannel;
++  const PhoneOtpStartCredential(this.phoneE164, {required this.preferredChannel});
++}
++
++class PhoneOtpVerifyCredential extends AuthCredential {
++  final String phoneE164;
++  final String code;
++  const PhoneOtpVerifyCredential(this.phoneE164, this.code);
++}
++
+diff --git a/lib/features/auth/domain/repositories/auth_repository.dart b/lib/features/auth/domain/repositories/auth_repository.dart
+--- a/lib/features/auth/domain/repositories/auth_repository.dart
++++ b/lib/features/auth/domain/repositories/auth_repository.dart
+@@ -1,25 +1,23 @@
+-import '../entities/auth_user.dart';
+-
+-abstract class AuthRepository {
+-  /// Returns the current logged-in user, or null if guest.
+-  Future<AuthUser?> getCurrentUser();
+-
+-  /// Logs in with email and password.
+-  Future<AuthUser> login(String email, String password);
+-
+-  /// Registers a new user.
+-  Future<void> signup({
+-    required String name,
+-    required String email,
+-    required String password,
+-  });
+-
+-  /// Verifies the OTP code (step 2 of signup).
+-  Future<AuthUser> verifyOtp(String email, String otp);
+-
+-  /// Logs the user out.
+-  Future<void> logout();
+-
+-  /// A stream to listen to auth state changes (Logged In <-> Logged Out).
+-  Stream<AuthUser?> get authStateChanges;
+-}
++import '../entities/auth_credential.dart';
++import '../entities/auth_user.dart';
++
++abstract class AuthRepository {
++  /// Returns the current logged-in user, or null if guest.
++  Future<AuthUser?> getCurrentUser();
++
++  /// Sign in using any supported credential (email/password, OAuth, OTP etc).
++  Future<AuthUser> signIn(AuthCredential credential);
++
++  /// Start signup using credential (e.g. email/password signup).
++  Future<void> signUp(AuthCredential credential);
++
++  /// Verify OTP (step 2 of signup or OTP login).
++  Future<AuthUser> verifyOtp(OtpVerifyCredential credential);
++
++  /// Logs the user out.
++  Future<void> signOut();
++
++  /// A stream to listen to auth state changes (Logged In <-> Logged Out).
++  Stream<AuthUser?> get authStateChanges;
++}
++
+diff --git a/lib/features/auth/presentation/providers/auth_provider.dart b/lib/features/auth/presentation/providers/auth_provider.dart
+--- a/lib/features/auth/presentation/providers/auth_provider.dart
++++ b/lib/features/auth/presentation/providers/auth_provider.dart
+@@ -1,110 +1,152 @@
+-import 'dart:async';
+-
+-import 'package:flutter/foundation.dart';
+-
+-import '../../domain/entities/auth_user.dart';
+-import '../../domain/repositories/auth_repository.dart';
+-
+-class AuthProvider extends ChangeNotifier {
+-  final AuthRepository _repository;
+-
+-  late final StreamSubscription<AuthUser?> _sub;
+-
+-  AuthUser? _user;
+-  bool _isLoading = false;
+-  String? _error;
+-  bool _isInitialized = false;
+-
+-  AuthProvider(this._repository) {
+-    // Listen to repository changes (e.g., session expiry)
+-    _sub = _repository.authStateChanges.listen((user) {
+-      _user = user;
+-      notifyListeners();
+-    });
+-
+-    _bootstrap();
+-  }
+-
+-  Future<void> _bootstrap() async {
+-    try {
+-      _user = await _repository.getCurrentUser();
+-    } catch (_) {
+-      // Ignore bootstrap errors; UI can retry login.
+-    } finally {
+-      _isInitialized = true;
+-      notifyListeners();
+-    }
+-  }
+-
+-  AuthUser? get user => _user;
+-  bool get isLoggedIn => _user != null;
+-  bool get isLoading => _isLoading;
+-  String? get error => _error;
+-  bool get isInitialized => _isInitialized;
+-
+-  void clearError() {
+-    _error = null;
+-    notifyListeners();
+-  }
+-
+-  Future<bool> login(String email, String password) async {
+-    _isLoading = true;
+-    _error = null;
+-    notifyListeners();
+-
+-    try {
+-      await _repository.login(email, password);
+-      return true; // Success
+-    } catch (e) {
+-      _error = e.toString().replaceAll('Exception: ', '');
+-      return false; // Failed
+-    } finally {
+-      _isLoading = false;
+-      notifyListeners();
+-    }
+-  }
+-
+-  Future<bool> signup(String name, String email, String password) async {
+-    _isLoading = true;
+-    _error = null;
+-    notifyListeners();
+-
+-    try {
+-      await _repository.signup(name: name, email: email, password: password);
+-      return true; // Ready for OTP
+-    } catch (e) {
+-      _error = e.toString();
+-      return false; // Failed
+-    } finally {
+-      _isLoading = false;
+-      notifyListeners();
+-    }
+-  }
+-
+-  Future<bool> verifyOtp(String email, String otp) async {
+-    _isLoading = true;
+-    _error = null;
+-    notifyListeners();
+-
+-    try {
+-      await _repository.verifyOtp(email, otp);
+-      return true;
+-    } catch (e) {
+-      _error = e.toString();
+-      return false;
+-    } finally {
+-      _isLoading = false;
+-      notifyListeners();
+-    }
+-  }
+-
+-  Future<void> logout() async {
+-    await _repository.logout();
+-  }
+-
+-  @override
+-  void dispose() {
+-    _sub.cancel();
+-    super.dispose();
+-  }
+-}
++import 'dart:async';
++
++import 'package:flutter/foundation.dart';
++
++import '../../../../core/error/failure.dart';
++import '../../../../core/error/failure_mapper.dart';
++import '../../../../core/result/result.dart';
++import '../../domain/entities/auth_user.dart';
++import '../../domain/repositories/auth_repository.dart';
++import '../../application/usecases/get_current_user_usecase.dart';
++import '../../application/usecases/login_usecase.dart';
++import '../../application/usecases/sign_out_usecase.dart';
++import '../../application/usecases/signup_usecase.dart';
++import '../../application/usecases/verify_otp_usecase.dart';
++
++class AuthProvider extends ChangeNotifier {
++  final AuthRepository _repository;
++
++  final GetCurrentUserUseCase _getCurrentUser;
++  final LoginUseCase _login;
++  final SignupUseCase _signup;
++  final VerifyOtpUseCase _verifyOtp;
++  final SignOutUseCase _signOut;
++
++  late final StreamSubscription<AuthUser?> _sub;
++
++  AuthUser? _user;
++  bool _isLoading = false;
++  Failure? _failure;
++  bool _isInitialized = false;
++
++  AuthProvider(this._repository)
++      : _getCurrentUser = GetCurrentUserUseCase(_repository),
++        _login = LoginUseCase(_repository),
++        _signup = SignupUseCase(_repository),
++        _verifyOtp = VerifyOtpUseCase(_repository),
++        _signOut = SignOutUseCase(_repository) {
++    // Listen to repository changes (e.g., session expiry)
++    _sub = _repository.authStateChanges.listen((user) {
++      _user = user;
++      notifyListeners();
++    });
++
++    _bootstrap();
++  }
++
++  Future<void> _bootstrap() async {
++    final res = await _getCurrentUser();
++    res.when(
++      success: (u) => _user = u,
++      failure: (_) {},
++    );
++
++    _isInitialized = true;
++    notifyListeners();
++  }
++
++  AuthUser? get user => _user;
++  bool get isLoggedIn => _user != null;
++  bool get isLoading => _isLoading;
++  Failure? get failure => _failure;
++  String? get error => _failure?.userMessage;
++  bool get isInitialized => _isInitialized;
++
++  void clearError() {
++    _failure = null;
++    notifyListeners();
++  }
++
++  Future<bool> login(String email, String password) async {
++    _isLoading = true;
++    _failure = null;
++    notifyListeners();
++
++    final res = await _login(email: email, password: password);
++    _isLoading = false;
++
++    final ok = res.when(
++      success: (_) => true,
++      failure: (f) {
++        _failure = f;
++        return false;
++      },
++    );
++
++    notifyListeners();
++    return ok;
++  }
++
++  Future<bool> signup(String name, String email, String password) async {
++    _isLoading = true;
++    _failure = null;
++    notifyListeners();
++
++    final res = await _signup(name: name, email: email, password: password);
++    _isLoading = false;
++
++    final ok = res.when(
++      success: (_) => true,
++      failure: (f) {
++        _failure = f;
++        return false;
++      },
++    );
++
++    notifyListeners();
++    return ok;
++  }
++
++  Future<bool> verifyOtp(String email, String otp) async {
++    _isLoading = true;
++    _failure = null;
++    notifyListeners();
++
++    final res = await _verifyOtp(email: email, otp: otp);
++    _isLoading = false;
++
++    final ok = res.when(
++      success: (_) => true,
++      failure: (f) {
++        _failure = f;
++        return false;
++      },
++    );
++
++    notifyListeners();
++    return ok;
++  }
++
++  Future<void> logout() async {
++    _isLoading = true;
++    _failure = null;
++    notifyListeners();
++
++    final res = await _signOut();
++    _isLoading = false;
++
++    res.when(
++      success: (_) {},
++      failure: (f) => _failure = f,
++    );
++
++    notifyListeners();
++  }
++
++  @override
++  void dispose() {
++    _sub.cancel();
++    super.dispose();
++  }
++}
++
+diff --git a/lib/features/my_rides/domain/entities/my_ride.dart b/lib/features/my_rides/domain/entities/my_ride.dart
+--- a/lib/features/my_rides/domain/entities/my_ride.dart
++++ b/lib/features/my_rides/domain/entities/my_ride.dart
+@@ -1,64 +1,54 @@
+-import 'my_ride_role.dart';
+-import 'my_ride_status.dart';
+-import 'ride_passenger.dart';
+-import 'ride_user.dart';
+-
+-class MyRide {
+-  final String id;
+-
+-  // Route
+-  final String fromCity;
+-  final String fromAddress;
+-  final String toCity;
+-  final String toAddress;
+-
+-  // Timing
+-  final DateTime departureTime;
+-  final Duration estimatedDuration;
+-
+-  // Pricing + seats
+-  final double pricePerSeat;
+-  final int seatsTotal;
+-  final int seatsAvailable;
+-
+-  // Context
+-  final MyRideRole role;
+-  final MyRideStatus status;
+-  final bool isArchived;
+-
+-  // People / vehicle
+-  final RideUser driver;
+-  final List<RidePassenger> passengers; // meaningful when role == driver
+-  final String? vehicleName;
+-
+-  const MyRide({
+-    required this.id,
+-    required this.fromCity,
+-    required this.fromAddress,
+-    required this.toCity,
+-    required this.toAddress,
+-    required this.departureTime,
+-    required this.estimatedDuration,
+-    required this.pricePerSeat,
+-    required this.seatsTotal,
+-    required this.seatsAvailable,
+-    required this.role,
+-    required this.status,
+-    required this.isArchived,
+-    required this.driver,
+-    this.passengers = const [],
+-    this.vehicleName,
+-  });
+-
+-  int get seatsBooked => (seatsTotal - seatsAvailable).clamp(0, seatsTotal);
+-
+-  bool get isUpcoming => !isArchived && departureTime.isAfter(DateTime.now());
+-  bool get isCompleted => !isArchived && departureTime.isBefore(DateTime.now());
+-
+-  String get formattedDuration {
+-    final h = estimatedDuration.inHours;
+-    final m = estimatedDuration.inMinutes.remainder(60);
+-    if (h <= 0) return '${m}m';
+-    return '${h}h ${m}m';
+-  }
+-}
++import 'my_ride_role.dart';
++import 'my_ride_status.dart';
++import 'ride_passenger.dart';
++import 'ride_user.dart';
++
++class MyRide {
++  final String id;
++
++  // Route
++  final String fromCity;
++  final String fromAddress;
++  final String toCity;
++  final String toAddress;
++
++  // Timing
++  final DateTime departureTime;
++  final Duration estimatedDuration;
++
++  // Pricing + seats
++  final double pricePerSeat;
++  final int seatsTotal;
++  final int seatsAvailable;
++
++  // Context
++  final MyRideRole role;
++  final MyRideStatus status;
++  final bool isArchived;
++
++  // People / vehicle
++  final RideUser driver;
++  final List<RidePassenger> passengers; // meaningful when role == driver
++  final String? vehicleName;
++
++  const MyRide({
++    required this.id,
++    required this.fromCity,
++    required this.fromAddress,
++    required this.toCity,
++    required this.toAddress,
++    required this.departureTime,
++    required this.estimatedDuration,
++    required this.pricePerSeat,
++    required this.seatsTotal,
++    required this.seatsAvailable,
++    required this.role,
++    required this.status,
++    required this.isArchived,
++    required this.driver,
++    this.passengers = const [],
++    this.vehicleName,
++  });
++
++  int get seatsBooked => (seatsTotal - seatsAvailable).clamp(0, seatsTotal);
++}
+diff --git a/lib/features/my_rides/presentation/pages/my_rides_page.dart b/lib/features/my_rides/presentation/pages/my_rides_page.dart
+--- a/lib/features/my_rides/presentation/pages/my_rides_page.dart
++++ b/lib/features/my_rides/presentation/pages/my_rides_page.dart
+@@ -1,167 +1,167 @@
+-import 'package:flutter/material.dart';
+-import 'package:go_router/go_router.dart';
+-import 'package:provider/provider.dart';
+-
+-import '../../../auth/presentation/providers/auth_provider.dart';
+-import '../../domain/entities/my_ride.dart';
+-import '../providers/my_rides_provider.dart';
+-import '../widgets/my_ride_card.dart';
+-
+-class MyRidesPage extends StatefulWidget {
+-  const MyRidesPage({super.key});
+-
+-  @override
+-  State<MyRidesPage> createState() => _MyRidesPageState();
+-}
+-
+-class _MyRidesPageState extends State<MyRidesPage> with SingleTickerProviderStateMixin {
+-  late final TabController _tabs;
+-
+-  @override
+-  void initState() {
+-    super.initState();
+-    _tabs = TabController(length: 3, vsync: this);
+-
+-    WidgetsBinding.instance.addPostFrameCallback((_) {
+-      final auth = context.read<AuthProvider>();
+-      if (auth.isLoggedIn) {
+-        context.read<MyRidesProvider>().loadMyRides();
+-      }
+-    });
+-  }
+-
+-  @override
+-  void dispose() {
+-    _tabs.dispose();
+-    super.dispose();
+-  }
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    final auth = context.watch<AuthProvider>();
+-
+-    if (!auth.isLoggedIn) {
+-      return Scaffold(
+-        appBar: AppBar(title: const Text('Your rides')),
+-        body: Center(
+-          child: Padding(
+-            padding: const EdgeInsets.all(24),
+-            child: Column(
+-              mainAxisSize: MainAxisSize.min,
+-              children: [
+-                const Text('Please login to view your rides.'),
+-                const SizedBox(height: 12),
+-                ElevatedButton(
+-                  onPressed: () => context.go('/login?from=/my-rides'),
+-                  child: const Text('Login'),
+-                ),
+-              ],
+-            ),
+-          ),
+-        ),
+-      );
+-    }
+-
+-    return Scaffold(
+-      appBar: AppBar(
+-        title: const Text('Your rides'),
+-        bottom: TabBar(
+-          controller: _tabs,
+-          tabs: const [
+-            Tab(text: 'All rides'),
+-            Tab(text: 'Upcoming'),
+-            Tab(text: 'Completed'),
+-          ],
+-        ),
+-      ),
+-      body: Consumer<MyRidesProvider>(
+-        builder: (context, prov, _) {
+-          if (prov.loading && prov.rides.isEmpty) {
+-            return const Center(child: CircularProgressIndicator());
+-          }
+-          if (prov.error != null && prov.rides.isEmpty) {
+-            return _ErrorState(
+-              message: prov.error!,
+-              onRetry: prov.loadMyRides,
+-            );
+-          }
+-
+-          return Column(
+-            children: [
+-              ListTile(
+-                title: const Text('Archived rides'),
+-                trailing: const Icon(Icons.chevron_right),
+-                onTap: () => context.go('/my-rides/archived'),
+-              ),
+-              const Divider(height: 1),
+-              Expanded(
+-                child: TabBarView(
+-                  controller: _tabs,
+-                  children: [
+-                    _RideList(rides: prov.filtered(MyRidesTab.all)),
+-                    _RideList(rides: prov.filtered(MyRidesTab.upcoming)),
+-                    _RideList(rides: prov.filtered(MyRidesTab.completed)),
+-                  ],
+-                ),
+-              ),
+-            ],
+-          );
+-        },
+-      ),
+-    );
+-  }
+-}
+-
+-class _RideList extends StatelessWidget {
+-  final List<MyRide> rides;
+-  const _RideList({required this.rides});
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    if (rides.isEmpty) {
+-      return const Center(child: Text('No rides found.'));
+-    }
+-    return RefreshIndicator(
+-      onRefresh: () => context.read<MyRidesProvider>().loadMyRides(),
+-      child: ListView.separated(
+-        padding: const EdgeInsets.all(12),
+-        itemCount: rides.length,
+-        separatorBuilder: (_, __) => const SizedBox(height: 6),
+-        itemBuilder: (context, index) {
+-          final ride = rides[index];
+-          return MyRideCard(
+-            ride: ride,
+-            onTap: () => context.go('/my-rides/details/${ride.id}'),
+-          );
+-        },
+-      ),
+-    );
+-  }
+-}
+-
+-class _ErrorState extends StatelessWidget {
+-  final String message;
+-  final Future<void> Function() onRetry;
+-
+-  const _ErrorState({required this.message, required this.onRetry});
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return Center(
+-      child: Padding(
+-        padding: const EdgeInsets.all(24),
+-        child: Column(
+-          mainAxisSize: MainAxisSize.min,
+-          children: [
+-            Text(message, textAlign: TextAlign.center),
+-            const SizedBox(height: 12),
+-            ElevatedButton(
+-              onPressed: () => onRetry(),
+-              child: const Text('Retry'),
+-            ),
+-          ],
+-        ),
+-      ),
+-    );
+-  }
+-}
++import 'package:flutter/material.dart';
++import 'package:go_router/go_router.dart';
++import 'package:provider/provider.dart';
++
++import '../../../../core/session/session_provider.dart';
++import '../../domain/entities/my_ride.dart';
++import '../providers/my_rides_provider.dart';
++import '../widgets/my_ride_card.dart';
++
++class MyRidesPage extends StatefulWidget {
++  const MyRidesPage({super.key});
++
++  @override
++  State<MyRidesPage> createState() => _MyRidesPageState();
++}
++
++class _MyRidesPageState extends State<MyRidesPage> with SingleTickerProviderStateMixin {
++  late final TabController _tabs;
++
++  @override
++  void initState() {
++    super.initState();
++    _tabs = TabController(length: 3, vsync: this);
++
++    WidgetsBinding.instance.addPostFrameCallback((_) {
++      final auth = context.read<SessionProvider>();
++      if (auth.isAuthenticated) {
++        context.read<MyRidesProvider>().loadMyRides();
++      }
++    });
++  }
++
++  @override
++  void dispose() {
++    _tabs.dispose();
++    super.dispose();
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    final auth = context.watch<SessionProvider>();
++
++    if (!auth.isAuthenticated) {
++      return Scaffold(
++        appBar: AppBar(title: const Text('Your rides')),
++        body: Center(
++          child: Padding(
++            padding: const EdgeInsets.all(24),
++            child: Column(
++              mainAxisSize: MainAxisSize.min,
++              children: [
++                const Text('Please login to view your rides.'),
++                const SizedBox(height: 12),
++                ElevatedButton(
++                  onPressed: () => context.go('/login?from=/my-rides'),
++                  child: const Text('Login'),
++                ),
++              ],
++            ),
++          ),
++        ),
++      );
++    }
++
++    return Scaffold(
++      appBar: AppBar(
++        title: const Text('Your rides'),
++        bottom: TabBar(
++          controller: _tabs,
++          tabs: const [
++            Tab(text: 'All rides'),
++            Tab(text: 'Upcoming'),
++            Tab(text: 'Completed'),
++          ],
++        ),
++      ),
++      body: Consumer<MyRidesProvider>(
++        builder: (context, prov, _) {
++          if (prov.loading && prov.rides.isEmpty) {
++            return const Center(child: CircularProgressIndicator());
++          }
++          if (prov.error != null && prov.rides.isEmpty) {
++            return _ErrorState(
++              message: prov.error!,
++              onRetry: prov.loadMyRides,
++            );
++          }
++
++          return Column(
++            children: [
++              ListTile(
++                title: const Text('Archived rides'),
++                trailing: const Icon(Icons.chevron_right),
++                onTap: () => context.go('/my-rides/archived'),
++              ),
++              const Divider(height: 1),
++              Expanded(
++                child: TabBarView(
++                  controller: _tabs,
++                  children: [
++                    _RideList(rides: prov.filtered(MyRidesTab.all)),
++                    _RideList(rides: prov.filtered(MyRidesTab.upcoming)),
++                    _RideList(rides: prov.filtered(MyRidesTab.completed)),
++                  ],
++                ),
++              ),
++            ],
++          );
++        },
++      ),
++    );
++  }
++}
++
++class _RideList extends StatelessWidget {
++  final List<MyRide> rides;
++  const _RideList({required this.rides});
++
++  @override
++  Widget build(BuildContext context) {
++    if (rides.isEmpty) {
++      return const Center(child: Text('No rides found.'));
++    }
++    return RefreshIndicator(
++      onRefresh: () => context.read<MyRidesProvider>().loadMyRides(),
++      child: ListView.separated(
++        padding: const EdgeInsets.all(12),
++        itemCount: rides.length,
++        separatorBuilder: (_, __) => const SizedBox(height: 6),
++        itemBuilder: (context, index) {
++          final ride = rides[index];
++          return MyRideCard(
++            ride: ride,
++            onTap: () => context.go('/my-rides/details/${ride.id}'),
++          );
++        },
++      ),
++    );
++  }
++}
++
++class _ErrorState extends StatelessWidget {
++  final String message;
++  final Future<void> Function() onRetry;
++
++  const _ErrorState({required this.message, required this.onRetry});
++
++  @override
++  Widget build(BuildContext context) {
++    return Center(
++      child: Padding(
++        padding: const EdgeInsets.all(24),
++        child: Column(
++          mainAxisSize: MainAxisSize.min,
++          children: [
++            Text(message, textAlign: TextAlign.center),
++            const SizedBox(height: 12),
++            ElevatedButton(
++              onPressed: () => onRetry(),
++              child: const Text('Retry'),
++            ),
++          ],
++        ),
++      ),
++    );
++  }
++}
+diff --git a/lib/features/my_rides/presentation/providers/my_rides_provider.dart b/lib/features/my_rides/presentation/providers/my_rides_provider.dart
+--- a/lib/features/my_rides/presentation/providers/my_rides_provider.dart
++++ b/lib/features/my_rides/presentation/providers/my_rides_provider.dart
+@@ -1,94 +1,97 @@
+-import 'package:flutter/foundation.dart';
+-
+-import '../../application/usecases/get_archived_rides_usecase.dart';
+-import '../../application/usecases/get_my_ride_details_usecase.dart';
+-import '../../application/usecases/get_my_rides_usecase.dart';
+-import '../../domain/entities/my_ride.dart';
+-
+-enum MyRidesTab { all, upcoming, completed }
+-
+-class MyRidesProvider extends ChangeNotifier {
+-  final GetMyRidesUseCase _getMyRides;
+-  final GetArchivedRidesUseCase _getArchived;
+-  final GetMyRideDetailsUseCase _getDetails;
+-
+-  MyRidesProvider(this._getMyRides, this._getArchived, this._getDetails);
+-
+-  bool _loading = false;
+-  String? _error;
+-
+-  List<MyRide> _rides = const [];
+-  List<MyRide> _archived = const [];
+-
+-  // Details state (kept separate from list state to avoid cross-screen side effects)
+-  bool _detailsLoading = false;
+-  String? _detailsError;
+-  MyRide? _currentRideDetails;
+-
+-  bool get loading => _loading;
+-  String? get error => _error;
+-
+-  List<MyRide> get rides => _rides;
+-  List<MyRide> get archivedRides => _archived;
+-
+-  bool get detailsLoading => _detailsLoading;
+-  String? get detailsError => _detailsError;
+-  MyRide? get currentRideDetails => _currentRideDetails;
+-
+-  Future<void> loadMyRides() async {
+-    _setLoading(true);
+-    _error = null;
+-    try {
+-      _rides = await _getMyRides();
+-    } catch (e) {
+-      _error = e.toString();
+-    } finally {
+-      _setLoading(false);
+-    }
+-  }
+-
+-  Future<void> loadArchived() async {
+-    _setLoading(true);
+-    _error = null;
+-    try {
+-      _archived = await _getArchived();
+-    } catch (e) {
+-      _error = e.toString();
+-    } finally {
+-      _setLoading(false);
+-    }
+-  }
+-
+-  /// Loads ride details by id (deep-link safe).
+-  Future<void> loadDetails(String rideId) async {
+-    _detailsLoading = true;
+-    _detailsError = null;
+-    _currentRideDetails = null;
+-    notifyListeners();
+-
+-    try {
+-      _currentRideDetails = await _getDetails(rideId);
+-    } catch (e) {
+-      _detailsError = e.toString();
+-    } finally {
+-      _detailsLoading = false;
+-      notifyListeners();
+-    }
+-  }
+-
+-  List<MyRide> filtered(MyRidesTab tab) {
+-    switch (tab) {
+-      case MyRidesTab.all:
+-        return _rides;
+-      case MyRidesTab.upcoming:
+-        return _rides.where((r) => r.isUpcoming).toList();
+-      case MyRidesTab.completed:
+-        return _rides.where((r) => r.isCompleted).toList();
+-    }
+-  }
+-
+-  void _setLoading(bool value) {
+-    _loading = value;
+-    notifyListeners();
+-  }
+-}
++import 'package:flutter/foundation.dart';
++
++import '../../application/usecases/get_archived_rides_usecase.dart';
++import '../../application/usecases/get_my_ride_details_usecase.dart';
++import '../../application/usecases/get_my_rides_usecase.dart';
++import '../../domain/entities/my_ride.dart';
++import '../utils/my_ride_ui_extensions.dart';
++import '../../../../core/error/failure.dart';
++import '../../../../core/error/failure_mapper.dart';
++
++enum MyRidesTab { all, upcoming, completed }
++
++class MyRidesProvider extends ChangeNotifier {
++  final GetMyRidesUseCase _getMyRides;
++  final GetArchivedRidesUseCase _getArchived;
++  final GetMyRideDetailsUseCase _getDetails;
++
++  MyRidesProvider(this._getMyRides, this._getArchived, this._getDetails);
++
++  bool _loading = false;
++  String? _error;
++
++  List<MyRide> _rides = const [];
++  List<MyRide> _archived = const [];
++
++  // Details state (kept separate from list state to avoid cross-screen side effects)
++  bool _detailsLoading = false;
++  String? _detailsError;
++  MyRide? _currentRideDetails;
++
++  bool get loading => _loading;
++  String? get error => _error;
++
++  List<MyRide> get rides => _rides;
++  List<MyRide> get archivedRides => _archived;
++
++  bool get detailsLoading => _detailsLoading;
++  String? get detailsError => _detailsError;
++  MyRide? get currentRideDetails => _currentRideDetails;
++
++  Future<void> loadMyRides() async {
++    _setLoading(true);
++    _error = null;
++    try {
++      _rides = await _getMyRides();
++    } catch (e) {
++      _error = e.toString();
++    } finally {
++      _setLoading(false);
++    }
++  }
++
++  Future<void> loadArchived() async {
++    _setLoading(true);
++    _error = null;
++    try {
++      _archived = await _getArchived();
++    } catch (e) {
++      _error = e.toString();
++    } finally {
++      _setLoading(false);
++    }
++  }
++
++  /// Loads ride details by id (deep-link safe).
++  Future<void> loadDetails(String rideId) async {
++    _detailsLoading = true;
++    _detailsError = null;
++    _currentRideDetails = null;
++    notifyListeners();
++
++    try {
++      _currentRideDetails = await _getDetails(rideId);
++    } catch (e) {
++      _detailsError = e.toString();
++    } finally {
++      _detailsLoading = false;
++      notifyListeners();
++    }
++  }
++
++  List<MyRide> filtered(MyRidesTab tab) {
++    switch (tab) {
++      case MyRidesTab.all:
++        return _rides;
++      case MyRidesTab.upcoming:
++        return _rides.where((r) => r.isUpcoming).toList();
++      case MyRidesTab.completed:
++        return _rides.where((r) => r.isCompleted).toList();
++    }
++  }
++
++  void _setLoading(bool value) {
++    _loading = value;
++    notifyListeners();
++  }
++}
+diff --git a/lib/features/my_rides/presentation/utils/my_ride_ui_extensions.dart b/lib/features/my_rides/presentation/utils/my_ride_ui_extensions.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/features/my_rides/presentation/utils/my_ride_ui_extensions.dart
+@@ -0,0 +1,14 @@
++import '../../domain/entities/my_ride.dart';
++
++extension MyRideUiX on MyRide {
++  bool get isUpcoming => !isArchived && departureTime.isAfter(DateTime.now());
++  bool get isCompleted => !isArchived && departureTime.isBefore(DateTime.now());
++
++  String get formattedDuration {
++    final h = estimatedDuration.inHours;
++    final m = estimatedDuration.inMinutes.remainder(60);
++    if (h <= 0) return '${m}m';
++    return '${h}h ${m}m';
++  }
++}
++
+diff --git a/lib/features/my_rides/presentation/widgets/my_ride_card.dart b/lib/features/my_rides/presentation/widgets/my_ride_card.dart
+--- a/lib/features/my_rides/presentation/widgets/my_ride_card.dart
++++ b/lib/features/my_rides/presentation/widgets/my_ride_card.dart
+@@ -1,103 +1,104 @@
+-import 'package:flutter/material.dart';
+-
+-import '../../domain/entities/my_ride.dart';
+-import '../../domain/entities/my_ride_role.dart';
+-import '../../domain/entities/my_ride_status.dart';
+-
+-class MyRideCard extends StatelessWidget {
+-  final MyRide ride;
+-  final VoidCallback onTap;
+-
+-  const MyRideCard({
+-    super.key,
+-    required this.ride,
+-    required this.onTap,
+-  });
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    final theme = Theme.of(context);
+-
+-    IconData roleIcon;
+-    String roleLabel;
+-    switch (ride.role) {
+-      case MyRideRole.driver:
+-        roleIcon = Icons.directions_car;
+-        roleLabel = 'As driver';
+-        break;
+-      case MyRideRole.passenger:
+-        roleIcon = Icons.airline_seat_recline_normal;
+-        roleLabel = 'As passenger';
+-        break;
+-    }
+-
+-    return Card(
+-      child: InkWell(
+-        onTap: onTap,
+-        child: Padding(
+-          padding: const EdgeInsets.all(12),
+-          child: Column(
+-            crossAxisAlignment: CrossAxisAlignment.start,
+-            children: [
+-              Row(
+-                children: [
+-                  Icon(Icons.schedule, size: 18, color: theme.textTheme.bodySmall?.color),
+-                  const SizedBox(width: 6),
+-                  Expanded(
+-                    child: Text(_formatDate(ride.departureTime), style: theme.textTheme.titleSmall),
+-                  ),
+-                  _StatusPill(text: ride.status.label),
+-                ],
+-              ),
+-              const SizedBox(height: 10),
+-              Text('${ride.fromCity} → ${ride.toCity}', style: theme.textTheme.titleMedium),
+-              const SizedBox(height: 4),
+-              Text('${ride.formattedDuration} • PKR ${ride.pricePerSeat.toStringAsFixed(0)}',
+-                  style: theme.textTheme.bodyMedium),
+-              const SizedBox(height: 10),
+-              Row(
+-                children: [
+-                  Icon(roleIcon, size: 18),
+-                  const SizedBox(width: 6),
+-                  Text(roleLabel),
+-                  const Spacer(),
+-                  if (ride.role == MyRideRole.passenger) ...[
+-                    const Icon(Icons.verified, size: 16),
+-                    const SizedBox(width: 4),
+-                    Text(ride.driver.name, style: theme.textTheme.bodyMedium),
+-                  ] else ...[
+-                    Text('${ride.seatsBooked}/${ride.seatsTotal} seats booked',
+-                        style: theme.textTheme.bodyMedium),
+-                  ],
+-                ],
+-              ),
+-            ],
+-          ),
+-        ),
+-      ),
+-    );
+-  }
+-
+-  String _formatDate(DateTime dt) {
+-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+-    final wd = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][dt.weekday - 1];
+-    return '$wd ${dt.day.toString().padLeft(2, '0')} ${months[dt.month - 1]}';
+-  }
+-}
+-
+-class _StatusPill extends StatelessWidget {
+-  final String text;
+-  const _StatusPill({required this.text});
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return Container(
+-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+-      decoration: BoxDecoration(
+-        borderRadius: BorderRadius.circular(999),
+-        border: Border.all(color: Theme.of(context).dividerColor),
+-      ),
+-      child: Text(text, style: Theme.of(context).textTheme.labelSmall),
+-    );
+-  }
+-}
++import 'package:flutter/material.dart';
++
++import '../../domain/entities/my_ride.dart';
++import '../utils/my_ride_ui_extensions.dart';
++import '../../domain/entities/my_ride_role.dart';
++import '../../domain/entities/my_ride_status.dart';
++
++class MyRideCard extends StatelessWidget {
++  final MyRide ride;
++  final VoidCallback onTap;
++
++  const MyRideCard({
++    super.key,
++    required this.ride,
++    required this.onTap,
++  });
++
++  @override
++  Widget build(BuildContext context) {
++    final theme = Theme.of(context);
++
++    IconData roleIcon;
++    String roleLabel;
++    switch (ride.role) {
++      case MyRideRole.driver:
++        roleIcon = Icons.directions_car;
++        roleLabel = 'As driver';
++        break;
++      case MyRideRole.passenger:
++        roleIcon = Icons.airline_seat_recline_normal;
++        roleLabel = 'As passenger';
++        break;
++    }
++
++    return Card(
++      child: InkWell(
++        onTap: onTap,
++        child: Padding(
++          padding: const EdgeInsets.all(12),
++          child: Column(
++            crossAxisAlignment: CrossAxisAlignment.start,
++            children: [
++              Row(
++                children: [
++                  Icon(Icons.schedule, size: 18, color: theme.textTheme.bodySmall?.color),
++                  const SizedBox(width: 6),
++                  Expanded(
++                    child: Text(_formatDate(ride.departureTime), style: theme.textTheme.titleSmall),
++                  ),
++                  _StatusPill(text: ride.status.label),
++                ],
++              ),
++              const SizedBox(height: 10),
++              Text('${ride.fromCity} → ${ride.toCity}', style: theme.textTheme.titleMedium),
++              const SizedBox(height: 4),
++              Text('${ride.formattedDuration} • PKR ${ride.pricePerSeat.toStringAsFixed(0)}',
++                  style: theme.textTheme.bodyMedium),
++              const SizedBox(height: 10),
++              Row(
++                children: [
++                  Icon(roleIcon, size: 18),
++                  const SizedBox(width: 6),
++                  Text(roleLabel),
++                  const Spacer(),
++                  if (ride.role == MyRideRole.passenger) ...[
++                    const Icon(Icons.verified, size: 16),
++                    const SizedBox(width: 4),
++                    Text(ride.driver.name, style: theme.textTheme.bodyMedium),
++                  ] else ...[
++                    Text('${ride.seatsBooked}/${ride.seatsTotal} seats booked',
++                        style: theme.textTheme.bodyMedium),
++                  ],
++                ],
++              ),
++            ],
++          ),
++        ),
++      ),
++    );
++  }
++
++  String _formatDate(DateTime dt) {
++    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
++    final wd = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][dt.weekday - 1];
++    return '$wd ${dt.day.toString().padLeft(2, '0')} ${months[dt.month - 1]}';
++  }
++}
++
++class _StatusPill extends StatelessWidget {
++  final String text;
++  const _StatusPill({required this.text});
++
++  @override
++  Widget build(BuildContext context) {
++    return Container(
++      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
++      decoration: BoxDecoration(
++        borderRadius: BorderRadius.circular(999),
++        border: Border.all(color: Theme.of(context).dividerColor),
++      ),
++      child: Text(text, style: Theme.of(context).textTheme.labelSmall),
++    );
++  }
++}
+diff --git a/lib/features/post_ride/presentation/pages/post_ride_page.dart b/lib/features/post_ride/presentation/pages/post_ride_page.dart
+--- a/lib/features/post_ride/presentation/pages/post_ride_page.dart
++++ b/lib/features/post_ride/presentation/pages/post_ride_page.dart
+@@ -2,7 +2,7 @@
+ import 'package:provider/provider.dart';
+ import 'package:go_router/go_router.dart';
+ 
+-import '../../../auth/presentation/providers/auth_provider.dart';
++import '../../../../core/session/session_provider.dart';
+ 
+ /// Placeholder for the Post Ride flow.
+ /// Guests can start the flow, but publishing should require auth (to be enforced later at publish).
+@@ -11,7 +11,7 @@
+ 
+   @override
+   Widget build(BuildContext context) {
+-    final auth = context.watch<AuthProvider>();
++    final auth = context.watch<SessionProvider>();
+ 
+     return Scaffold(
+       appBar: AppBar(
+@@ -26,7 +26,7 @@
+               'Draft your ride details here. Publishing will require login and vehicle details.',
+             ),
+             const SizedBox(height: 16),
+-            if (!auth.isLoggedIn)
++            if (!auth.isAuthenticated)
+               Card(
+                 child: ListTile(
+                   title: const Text('Not logged in'),
+diff --git a/lib/features/post_ride/presentation/providers/post_ride_publish_provider.dart b/lib/features/post_ride/presentation/providers/post_ride_publish_provider.dart
+--- a/lib/features/post_ride/presentation/providers/post_ride_publish_provider.dart
++++ b/lib/features/post_ride/presentation/providers/post_ride_publish_provider.dart
+@@ -1,63 +1,65 @@
+-import 'package:flutter/foundation.dart';
+-
+-import '../../application/usecases/publish_return_ride_usecase.dart';
+-import '../../application/usecases/publish_ride_usecase.dart';
+-import '../../domain/entities/ride_draft.dart';
+-
+-class PostRidePublishProvider extends ChangeNotifier {
+-  final PublishRideUseCase _publishRide;
+-  final PublishReturnRideUseCase _publishReturnRide;
+-
+-  PostRidePublishProvider(this._publishRide, this._publishReturnRide);
+-
+-  bool _loading = false;
+-  String? _lastPublishedRideId;
+-  String? _errorMessage;
+-
+-  bool get loading => _loading;
+-  String? get lastPublishedRideId => _lastPublishedRideId;
+-  String? get errorMessage => _errorMessage;
+-
+-  void _setLoading(bool value) {
+-    _loading = value;
+-    notifyListeners();
+-  }
+-
+-  void _setError(String? message) {
+-    _errorMessage = message;
+-    notifyListeners();
+-  }
+-
+-  /// Returns the published ride id, or null if publishing failed.
+-  Future<String?> publish(RideDraft draft) async {
+-    _setError(null);
+-    _setLoading(true);
+-
+-    try {
+-      final id = await _publishRide(draft);
+-      _lastPublishedRideId = id;
+-      return id;
+-    } catch (e) {
+-      _setError(e.toString());
+-      return null;
+-    } finally {
+-      _setLoading(false);
+-    }
+-  }
+-
+-  /// Returns the published return ride id, or null if publishing failed.
+-  Future<String?> publishReturn(RideDraft returnDraft) async {
+-    _setError(null);
+-    _setLoading(true);
+-
+-    try {
+-      final id = await _publishReturnRide(returnDraft);
+-      return id;
+-    } catch (e) {
+-      _setError(e.toString());
+-      return null;
+-    } finally {
+-      _setLoading(false);
+-    }
+-  }
+-}
++import 'package:flutter/foundation.dart';
++
++import '../../application/usecases/publish_return_ride_usecase.dart';
++import '../../application/usecases/publish_ride_usecase.dart';
++import '../../domain/entities/ride_draft.dart';
++import '../../../../core/error/failure.dart';
++import '../../../../core/error/failure_mapper.dart';
++
++class PostRidePublishProvider extends ChangeNotifier {
++  final PublishRideUseCase _publishRide;
++  final PublishReturnRideUseCase _publishReturnRide;
++
++  PostRidePublishProvider(this._publishRide, this._publishReturnRide);
++
++  bool _loading = false;
++  String? _lastPublishedRideId;
++  Failure? _failure;
++bool get loading => _loading;
++  String? get lastPublishedRideId => _lastPublishedRideId;
++  String? get errorMessage => _failure?.userMessage;
++  Failure? get failure => _failure;
++
++  void _setLoading(bool value) {
++    _loading = value;
++    notifyListeners();
++  }
++
++  void _setError(String? message) {
++    _errorMessage = message;
++    notifyListeners();
++  }
++
++  /// Returns the published ride id, or null if publishing failed.
++  Future<String?> publish(RideDraft draft) async {
++    _setError(null);
++    _setLoading(true);
++
++    try {
++      final id = await _publishRide(draft);
++      _lastPublishedRideId = id;
++      return id;
++    } catch (e) {
++      _setError(e.toString());
++      return null;
++    } finally {
++      _setLoading(false);
++    }
++  }
++
++  /// Returns the published return ride id, or null if publishing failed.
++  Future<String?> publishReturn(RideDraft returnDraft) async {
++    _setError(null);
++    _setLoading(true);
++
++    try {
++      final id = await _publishReturnRide(returnDraft);
++      return id;
++    } catch (e) {
++      _setError(e.toString());
++      return null;
++    } finally {
++      _setLoading(false);
++    }
++  }
++}
+diff --git a/lib/features/profile/presentation/pages/profile_page.dart b/lib/features/profile/presentation/pages/profile_page.dart
+--- a/lib/features/profile/presentation/pages/profile_page.dart
++++ b/lib/features/profile/presentation/pages/profile_page.dart
+@@ -2,16 +2,16 @@
+ import 'package:provider/provider.dart';
+ import 'package:go_router/go_router.dart';
+ 
+-import '../../../auth/presentation/providers/auth_provider.dart';
++import '../../../../core/session/session_provider.dart';
+ 
+ class ProfilePage extends StatelessWidget {
+   const ProfilePage({super.key});
+ 
+   @override
+   Widget build(BuildContext context) {
+-    final auth = context.watch<AuthProvider>();
++    final auth = context.watch<SessionProvider>();
+ 
+-    if (!auth.isLoggedIn) {
++    if (!auth.isAuthenticated) {
+       return Scaffold(
+         appBar: AppBar(title: const Text('Profile')),
+         body: Center(
+@@ -44,7 +44,7 @@
+             const SizedBox(height: 12),
+             ElevatedButton(
+               onPressed: () async {
+-                await context.read<AuthProvider>().logout();
++                await context.read<SessionProvider>().logout();
+                 if (context.mounted) context.go('/');
+               },
+               child: const Text('Logout'),
+diff --git a/lib/features/ride_search/application/usecases/book_ride_usecase.dart b/lib/features/ride_search/application/usecases/book_ride_usecase.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/features/ride_search/application/usecases/book_ride_usecase.dart
+@@ -0,0 +1,14 @@
++import '../../domain/entities/booking_result.dart';
++import '../../domain/entities/booking_request.dart';
++import '../../domain/repositories/ride_repository.dart';
++
++class BookRideUseCase {
++  final RideRepository repository;
++  BookRideUseCase(this.repository);
++
++  Future<BookingResult> call(BookingRequest request)  {
++    return repository.submitBooking(request);
++  }
++
++}
++
+diff --git a/lib/features/ride_search/application/usecases/get_ride_details_usecase.dart b/lib/features/ride_search/application/usecases/get_ride_details_usecase.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/features/ride_search/application/usecases/get_ride_details_usecase.dart
+@@ -0,0 +1,12 @@
++import '../../domain/entities/ride.dart';
++import '../../domain/repositories/ride_repository.dart';
++
++class GetRideDetailsUseCase {
++  final RideRepository rideRepository;
++
++  GetRideDetailsUseCase(this.rideRepository);
++
++  Future<Ride> call(String rideId) {
++    return rideRepository.getRideDetails(rideId);
++  }
++}
+diff --git a/lib/features/ride_search/application/usecases/search_rides_usecase.dart b/lib/features/ride_search/application/usecases/search_rides_usecase.dart
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/lib/features/ride_search/application/usecases/search_rides_usecase.dart
+@@ -0,0 +1,13 @@
++import '../../domain/entities/ride.dart';
++import '../../domain/entities/search_filters.dart';
++import '../../domain/repositories/ride_repository.dart';
++
++class SearchRidesUseCase {
++  final RideRepository repository;
++
++  SearchRidesUseCase(this.repository);
++
++  Future<List<Ride>> call(SearchFilters filters) {
++    return repository.searchRides(filters);
++  }
++}
+diff --git a/lib/features/ride_search/presentation/pages/booking_summary_page.dart b/lib/features/ride_search/presentation/pages/booking_summary_page.dart
+--- a/lib/features/ride_search/presentation/pages/booking_summary_page.dart
++++ b/lib/features/ride_search/presentation/pages/booking_summary_page.dart
+@@ -1,443 +1,443 @@
+-import 'package:flutter/material.dart';
+-import 'package:provider/provider.dart';
+-import 'package:go_router/go_router.dart';
+-
+-import '../../../../core/design_system/tokens.dart';
+-import '../../../auth/presentation/providers/auth_provider.dart';
+-import '../../domain/entities/passenger.dart';
+-import '../provider/booking_provider.dart';
+-import 'booking_result_page.dart';
+-
+-class BookingSummaryPage extends StatefulWidget {
+-  const BookingSummaryPage({super.key});
+-
+-  @override
+-  State<BookingSummaryPage> createState() => _BookingSummaryPageState();
+-}
+-
+-class _BookingSummaryPageState extends State<BookingSummaryPage> {
+-  final _commentController = TextEditingController();
+-
+-  @override
+-  void initState() {
+-    super.initState();
+-    _commentController.text =
+-        Provider.of<BookingProvider>(context, listen: false).comment;
+-  }
+-
+-  @override
+-  void dispose() {
+-    _commentController.dispose();
+-    super.dispose();
+-  }
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return Consumer<BookingProvider>(
+-      builder: (context, provider, _) {
+-        final ride = provider.ride;
+-        if (ride == null) {
+-          return const Scaffold(
+-            body: Center(child: Text('No ride selected')),
+-          );
+-        }
+-
+-        final arrivalTime = ride.departureTime.add(const Duration(hours: 4));
+-        final totalPrice = ride.price * provider.seats;
+-
+-        return Scaffold(
+-          backgroundColor: AppTokens.surface,
+-          appBar: AppBar(
+-            backgroundColor: AppTokens.surface,
+-            elevation: 0,
+-            leading: IconButton(
+-              icon: const Icon(Icons.arrow_back, color: AppTokens.text),
+-              onPressed: () => Navigator.of(context).pop(),
+-            ),
+-          ),
+-          body: SafeArea(
+-            child: Column(
+-              children: [
+-                Expanded(
+-                  child: SingleChildScrollView(
+-                    padding: const EdgeInsets.symmetric(
+-                        horizontal: AppTokens.space6),
+-                    child: Column(
+-                      crossAxisAlignment: CrossAxisAlignment.start,
+-                      children: [
+-                        Text(
+-                          'Book online and secure\nyour seat',
+-                          style: Theme.of(context)
+-                              .textTheme
+-                              .headlineMedium
+-                              ?.copyWith(
+-                                fontWeight: FontWeight.bold,
+-                                color: AppTokens.text,
+-                                height: 1.2,
+-                              ),
+-                        ),
+-                        const SizedBox(height: AppTokens.space6),
+-                        _DateHeader(date: ride.departureTime),
+-                        const SizedBox(height: AppTokens.space4),
+-                        _TimelineSection(
+-                          departureTime: ride.departureTime,
+-                          arrivalTime: arrivalTime,
+-                          fromCity: ride.fromCity,
+-                          toCity: ride.toCity,
+-                        ),
+-                        const Padding(
+-                          padding: EdgeInsets.symmetric(
+-                              vertical: AppTokens.space6),
+-                          child: Divider(color: AppTokens.outline),
+-                        ),
+-                        _PriceSummarySection(
+-                          seats: provider.seats,
+-                          pricePerSeat: ride.price,
+-                          totalPrice: totalPrice,
+-                          onSeatsChanged: (value) {
+-                            if (value != null) {
+-                              provider.updateSeats(value);
+-                            }
+-                          },
+-                        ),
+-                        const Padding(
+-                          padding: EdgeInsets.symmetric(
+-                              vertical: AppTokens.space6),
+-                          child: Divider(color: AppTokens.outline),
+-                        ),
+-                        _MessageSection(
+-                          driverName: ride.driver.name,
+-                          commentController: _commentController,
+-                          onCommentChanged: provider.updateComment,
+-                        ),
+-                        const SizedBox(height: AppTokens.space6),
+-                      ],
+-                    ),
+-                  ),
+-                ),
+-                _StickyFooter(
+-                  onPressed: provider.isSubmitting
+-                      ? null
+-                      : () async {
+-                          final auth = context.read<AuthProvider>();
+-                          if (!auth.isLoggedIn) {
+-                            context.go('/login?from=/booking-summary');
+-                            return;
+-                          }
+-
+-                          final user = auth.user!;
+-                          provider.setPassenger(
+-                            Passenger(
+-                              id: user.id,
+-                              name: user.name,
+-                              isRegistered: true,
+-                            ),
+-                          );
+-
+-                          await provider.submitBooking();
+-                          if (context.mounted) {
+-                            Navigator.of(context).push(
+-                              MaterialPageRoute(
+-                                builder: (_) => const BookingResultPage(),
+-                              ),
+-                            );
+-                          }
+-                        },
+-                  isLoading: provider.isSubmitting,
+-                ),
+-              ],
+-            ),
+-          ),
+-        );
+-      },
+-    );
+-  }
+-}
+-
+-class _DateHeader extends StatelessWidget {
+-  final DateTime date;
+-
+-  const _DateHeader({required this.date});
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    final months = [
+-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+-    ];
+-    final weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+-
+-    final d = date.toLocal();
+-    final dateStr =
+-        '${weekDays[d.weekday % 7]} ${d.day} ${months[d.month - 1]}';
+-
+-    return Text(
+-      dateStr,
+-      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+-            fontWeight: FontWeight.bold,
+-            color: AppTokens.text,
+-          ),
+-    );
+-  }
+-}
+-
+-class _TimelineSection extends StatelessWidget {
+-  final DateTime departureTime;
+-  final DateTime arrivalTime;
+-  final String fromCity;
+-  final String toCity;
+-
+-  const _TimelineSection({
+-    required this.departureTime,
+-    required this.arrivalTime,
+-    required this.fromCity,
+-    required this.toCity,
+-  });
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return IntrinsicHeight(
+-      child: Row(
+-        crossAxisAlignment: CrossAxisAlignment.start,
+-        children: [
+-          Column(
+-            crossAxisAlignment: CrossAxisAlignment.end,
+-            children: [
+-              Text(
+-                _formatTime(departureTime),
+-                style: const TextStyle(color: Colors.grey, fontSize: 14),
+-              ),
+-              const Spacer(),
+-              Text(
+-                _formatTime(arrivalTime),
+-                style: const TextStyle(color: Colors.grey, fontSize: 14),
+-              ),
+-            ],
+-          ),
+-          const SizedBox(width: AppTokens.space4),
+-          Column(
+-            children: [
+-              const SizedBox(height: 4),
+-              _HollowDot(),
+-              Expanded(
+-                child: Container(
+-                  width: 1,
+-                  color: AppTokens.text,
+-                  margin: const EdgeInsets.symmetric(vertical: 4),
+-                ),
+-              ),
+-              _HollowDot(),
+-              const SizedBox(height: 4),
+-            ],
+-          ),
+-          const SizedBox(width: AppTokens.space4),
+-          Expanded(
+-            child: Column(
+-              crossAxisAlignment: CrossAxisAlignment.start,
+-              children: [
+-                Text(
+-                  fromCity,
+-                  style: const TextStyle(
+-                    fontWeight: FontWeight.bold,
+-                    color: AppTokens.text,
+-                  ),
+-                ),
+-                Text(
+-                  fromCity.split(' - ').last,
+-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+-                ),
+-                const SizedBox(height: 32),
+-                Text(
+-                  toCity,
+-                  style: const TextStyle(
+-                    fontWeight: FontWeight.bold,
+-                    color: AppTokens.text,
+-                  ),
+-                ),
+-                Text(
+-                  toCity.split(' - ').last,
+-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+-                ),
+-              ],
+-            ),
+-          ),
+-        ],
+-      ),
+-    );
+-  }
+-
+-  String _formatTime(DateTime dt) {
+-    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+-  }
+-}
+-
+-class _HollowDot extends StatelessWidget {
+-  @override
+-  Widget build(BuildContext context) {
+-    return Container(
+-      width: 16,
+-      height: 16,
+-      decoration: BoxDecoration(
+-        color: AppTokens.surface,
+-        border: Border.all(color: AppTokens.text, width: 2),
+-        shape: BoxShape.circle,
+-      ),
+-    );
+-  }
+-}
+-
+-class _PriceSummarySection extends StatelessWidget {
+-  final int seats;
+-  final double pricePerSeat;
+-  final double totalPrice;
+-  final ValueChanged<int?> onSeatsChanged;
+-
+-  const _PriceSummarySection({
+-    required this.seats,
+-    required this.pricePerSeat,
+-    required this.totalPrice,
+-    required this.onSeatsChanged,
+-  });
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return Column(
+-      crossAxisAlignment: CrossAxisAlignment.start,
+-      children: [
+-        Text(
+-          'Price summary',
+-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+-                fontWeight: FontWeight.bold,
+-                color: AppTokens.text,
+-              ),
+-        ),
+-        const SizedBox(height: AppTokens.space4),
+-        Row(
+-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+-          children: [
+-            Column(
+-              crossAxisAlignment: CrossAxisAlignment.start,
+-              children: [
+-                Text(
+-                  '${seats} seat${seats > 1 ? "s" : ""}: PKR ${totalPrice.toStringAsFixed(2)}',
+-                  style: const TextStyle(color: AppTokens.text, fontSize: 16),
+-                ),
+-                const Text(
+-                  'Pay in the car',
+-                  style: TextStyle(color: Colors.grey, fontSize: 14),
+-                ),
+-              ],
+-            ),
+-            DropdownButton<int>(
+-              value: seats,
+-              items: List.generate(
+-                6,
+-                (index) => DropdownMenuItem(
+-                  value: index + 1,
+-                  child: Text('${index + 1}'),
+-                ),
+-              ),
+-              onChanged: onSeatsChanged,
+-            ),
+-          ],
+-        ),
+-      ],
+-    );
+-  }
+-}
+-
+-class _MessageSection extends StatelessWidget {
+-  final String driverName;
+-  final TextEditingController commentController;
+-  final ValueChanged<String> onCommentChanged;
+-
+-  const _MessageSection({
+-    required this.driverName,
+-    required this.commentController,
+-    required this.onCommentChanged,
+-  });
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return Column(
+-      crossAxisAlignment: CrossAxisAlignment.start,
+-      children: [
+-        Text(
+-          'Send a message to $driverName to introduce yourself',
+-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+-                fontWeight: FontWeight.bold,
+-                color: AppTokens.text,
+-              ),
+-        ),
+-        const SizedBox(height: AppTokens.space4),
+-        TextField(
+-          controller: commentController,
+-          maxLines: 3,
+-          decoration: const InputDecoration(
+-            labelText: 'Comment (optional)',
+-            border: OutlineInputBorder(),
+-          ),
+-          onChanged: onCommentChanged,
+-        ),
+-      ],
+-    );
+-  }
+-}
+-
+-class _StickyFooter extends StatelessWidget {
+-  final VoidCallback? onPressed;
+-  final bool isLoading;
+-
+-  const _StickyFooter({required this.onPressed, required this.isLoading});
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return Container(
+-      padding: const EdgeInsets.all(AppTokens.space4),
+-      decoration: BoxDecoration(
+-        color: AppTokens.surface,
+-        boxShadow: [
+-          BoxShadow(
+-            color: Colors.black.withOpacity(0.05),
+-            blurRadius: 10,
+-            offset: const Offset(0, -5),
+-          ),
+-        ],
+-      ),
+-      child: SizedBox(
+-        width: double.infinity,
+-        child: ElevatedButton(
+-          style: ElevatedButton.styleFrom(
+-            backgroundColor: AppTokens.brand,
+-            foregroundColor: Colors.white,
+-            padding: const EdgeInsets.symmetric(vertical: AppTokens.space4),
+-            shape: const StadiumBorder(),
+-            elevation: 4,
+-          ),
+-          onPressed: onPressed,
+-          child: isLoading
+-              ? const SizedBox(
+-                  height: 24,
+-                  width: 24,
+-                  child: CircularProgressIndicator(
+-                    strokeWidth: 2,
+-                    color: Colors.white,
+-                  ),
+-                )
+-              : const Row(
+-                  mainAxisAlignment: MainAxisAlignment.center,
+-                  children: [
+-                    Icon(Icons.bolt, size: 20),
+-                    SizedBox(width: 8),
+-                    Text(
+-                      'Book',
+-                      style:
+-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+-                    ),
+-                  ],
+-                ),
+-        ),
+-      ),
+-    );
+-  }
+-}
++import 'package:flutter/material.dart';
++import 'package:provider/provider.dart';
++import 'package:go_router/go_router.dart';
++
++import '../../../../core/design_system/tokens.dart';
++import '../../../../core/session/session_provider.dart';
++import '../../domain/entities/passenger.dart';
++import '../provider/booking_provider.dart';
++import 'booking_result_page.dart';
++
++class BookingSummaryPage extends StatefulWidget {
++  const BookingSummaryPage({super.key});
++
++  @override
++  State<BookingSummaryPage> createState() => _BookingSummaryPageState();
++}
++
++class _BookingSummaryPageState extends State<BookingSummaryPage> {
++  final _commentController = TextEditingController();
++
++  @override
++  void initState() {
++    super.initState();
++    _commentController.text =
++        Provider.of<BookingProvider>(context, listen: false).comment;
++  }
++
++  @override
++  void dispose() {
++    _commentController.dispose();
++    super.dispose();
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    return Consumer<BookingProvider>(
++      builder: (context, provider, _) {
++        final ride = provider.ride;
++        if (ride == null) {
++          return const Scaffold(
++            body: Center(child: Text('No ride selected')),
++          );
++        }
++
++        final arrivalTime = ride.departureTime.add(const Duration(hours: 4));
++        final totalPrice = ride.price * provider.seats;
++
++        return Scaffold(
++          backgroundColor: AppTokens.surface,
++          appBar: AppBar(
++            backgroundColor: AppTokens.surface,
++            elevation: 0,
++            leading: IconButton(
++              icon: const Icon(Icons.arrow_back, color: AppTokens.text),
++              onPressed: () => Navigator.of(context).pop(),
++            ),
++          ),
++          body: SafeArea(
++            child: Column(
++              children: [
++                Expanded(
++                  child: SingleChildScrollView(
++                    padding: const EdgeInsets.symmetric(
++                        horizontal: AppTokens.space6),
++                    child: Column(
++                      crossAxisAlignment: CrossAxisAlignment.start,
++                      children: [
++                        Text(
++                          'Book online and secure\nyour seat',
++                          style: Theme.of(context)
++                              .textTheme
++                              .headlineMedium
++                              ?.copyWith(
++                                fontWeight: FontWeight.bold,
++                                color: AppTokens.text,
++                                height: 1.2,
++                              ),
++                        ),
++                        const SizedBox(height: AppTokens.space6),
++                        _DateHeader(date: ride.departureTime),
++                        const SizedBox(height: AppTokens.space4),
++                        _TimelineSection(
++                          departureTime: ride.departureTime,
++                          arrivalTime: arrivalTime,
++                          fromCity: ride.fromCity,
++                          toCity: ride.toCity,
++                        ),
++                        const Padding(
++                          padding: EdgeInsets.symmetric(
++                              vertical: AppTokens.space6),
++                          child: Divider(color: AppTokens.outline),
++                        ),
++                        _PriceSummarySection(
++                          seats: provider.seats,
++                          pricePerSeat: ride.price,
++                          totalPrice: totalPrice,
++                          onSeatsChanged: (value) {
++                            if (value != null) {
++                              provider.updateSeats(value);
++                            }
++                          },
++                        ),
++                        const Padding(
++                          padding: EdgeInsets.symmetric(
++                              vertical: AppTokens.space6),
++                          child: Divider(color: AppTokens.outline),
++                        ),
++                        _MessageSection(
++                          driverName: ride.driver.name,
++                          commentController: _commentController,
++                          onCommentChanged: provider.updateComment,
++                        ),
++                        const SizedBox(height: AppTokens.space6),
++                      ],
++                    ),
++                  ),
++                ),
++                _StickyFooter(
++                  onPressed: provider.isSubmitting
++                      ? null
++                      : () async {
++                          final auth = context.read<SessionProvider>();
++                          if (!auth.isAuthenticated) {
++                            context.go('/login?from=/booking-summary');
++                            return;
++                          }
++
++                          final user = auth.user!;
++                          provider.setPassenger(
++                            Passenger(
++                              id: user.id,
++                              name: user.name,
++                              isRegistered: true,
++                            ),
++                          );
++
++                          await provider.submitBooking();
++                          if (context.mounted) {
++                            Navigator.of(context).push(
++                              MaterialPageRoute(
++                                builder: (_) => const BookingResultPage(),
++                              ),
++                            );
++                          }
++                        },
++                  isLoading: provider.isSubmitting,
++                ),
++              ],
++            ),
++          ),
++        );
++      },
++    );
++  }
++}
++
++class _DateHeader extends StatelessWidget {
++  final DateTime date;
++
++  const _DateHeader({required this.date});
++
++  @override
++  Widget build(BuildContext context) {
++    final months = [
++      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
++      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
++    ];
++    final weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
++
++    final d = date.toLocal();
++    final dateStr =
++        '${weekDays[d.weekday % 7]} ${d.day} ${months[d.month - 1]}';
++
++    return Text(
++      dateStr,
++      style: Theme.of(context).textTheme.titleLarge?.copyWith(
++            fontWeight: FontWeight.bold,
++            color: AppTokens.text,
++          ),
++    );
++  }
++}
++
++class _TimelineSection extends StatelessWidget {
++  final DateTime departureTime;
++  final DateTime arrivalTime;
++  final String fromCity;
++  final String toCity;
++
++  const _TimelineSection({
++    required this.departureTime,
++    required this.arrivalTime,
++    required this.fromCity,
++    required this.toCity,
++  });
++
++  @override
++  Widget build(BuildContext context) {
++    return IntrinsicHeight(
++      child: Row(
++        crossAxisAlignment: CrossAxisAlignment.start,
++        children: [
++          Column(
++            crossAxisAlignment: CrossAxisAlignment.end,
++            children: [
++              Text(
++                _formatTime(departureTime),
++                style: const TextStyle(color: Colors.grey, fontSize: 14),
++              ),
++              const Spacer(),
++              Text(
++                _formatTime(arrivalTime),
++                style: const TextStyle(color: Colors.grey, fontSize: 14),
++              ),
++            ],
++          ),
++          const SizedBox(width: AppTokens.space4),
++          Column(
++            children: [
++              const SizedBox(height: 4),
++              _HollowDot(),
++              Expanded(
++                child: Container(
++                  width: 1,
++                  color: AppTokens.text,
++                  margin: const EdgeInsets.symmetric(vertical: 4),
++                ),
++              ),
++              _HollowDot(),
++              const SizedBox(height: 4),
++            ],
++          ),
++          const SizedBox(width: AppTokens.space4),
++          Expanded(
++            child: Column(
++              crossAxisAlignment: CrossAxisAlignment.start,
++              children: [
++                Text(
++                  fromCity,
++                  style: const TextStyle(
++                    fontWeight: FontWeight.bold,
++                    color: AppTokens.text,
++                  ),
++                ),
++                Text(
++                  fromCity.split(' - ').last,
++                  style: const TextStyle(color: Colors.grey, fontSize: 12),
++                ),
++                const SizedBox(height: 32),
++                Text(
++                  toCity,
++                  style: const TextStyle(
++                    fontWeight: FontWeight.bold,
++                    color: AppTokens.text,
++                  ),
++                ),
++                Text(
++                  toCity.split(' - ').last,
++                  style: const TextStyle(color: Colors.grey, fontSize: 12),
++                ),
++              ],
++            ),
++          ),
++        ],
++      ),
++    );
++  }
++
++  String _formatTime(DateTime dt) {
++    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
++  }
++}
++
++class _HollowDot extends StatelessWidget {
++  @override
++  Widget build(BuildContext context) {
++    return Container(
++      width: 16,
++      height: 16,
++      decoration: BoxDecoration(
++        color: AppTokens.surface,
++        border: Border.all(color: AppTokens.text, width: 2),
++        shape: BoxShape.circle,
++      ),
++    );
++  }
++}
++
++class _PriceSummarySection extends StatelessWidget {
++  final int seats;
++  final double pricePerSeat;
++  final double totalPrice;
++  final ValueChanged<int?> onSeatsChanged;
++
++  const _PriceSummarySection({
++    required this.seats,
++    required this.pricePerSeat,
++    required this.totalPrice,
++    required this.onSeatsChanged,
++  });
++
++  @override
++  Widget build(BuildContext context) {
++    return Column(
++      crossAxisAlignment: CrossAxisAlignment.start,
++      children: [
++        Text(
++          'Price summary',
++          style: Theme.of(context).textTheme.titleLarge?.copyWith(
++                fontWeight: FontWeight.bold,
++                color: AppTokens.text,
++              ),
++        ),
++        const SizedBox(height: AppTokens.space4),
++        Row(
++          mainAxisAlignment: MainAxisAlignment.spaceBetween,
++          children: [
++            Column(
++              crossAxisAlignment: CrossAxisAlignment.start,
++              children: [
++                Text(
++                  '${seats} seat${seats > 1 ? "s" : ""}: PKR ${totalPrice.toStringAsFixed(2)}',
++                  style: const TextStyle(color: AppTokens.text, fontSize: 16),
++                ),
++                const Text(
++                  'Pay in the car',
++                  style: TextStyle(color: Colors.grey, fontSize: 14),
++                ),
++              ],
++            ),
++            DropdownButton<int>(
++              value: seats,
++              items: List.generate(
++                6,
++                (index) => DropdownMenuItem(
++                  value: index + 1,
++                  child: Text('${index + 1}'),
++                ),
++              ),
++              onChanged: onSeatsChanged,
++            ),
++          ],
++        ),
++      ],
++    );
++  }
++}
++
++class _MessageSection extends StatelessWidget {
++  final String driverName;
++  final TextEditingController commentController;
++  final ValueChanged<String> onCommentChanged;
++
++  const _MessageSection({
++    required this.driverName,
++    required this.commentController,
++    required this.onCommentChanged,
++  });
++
++  @override
++  Widget build(BuildContext context) {
++    return Column(
++      crossAxisAlignment: CrossAxisAlignment.start,
++      children: [
++        Text(
++          'Send a message to $driverName to introduce yourself',
++          style: Theme.of(context).textTheme.titleMedium?.copyWith(
++                fontWeight: FontWeight.bold,
++                color: AppTokens.text,
++              ),
++        ),
++        const SizedBox(height: AppTokens.space4),
++        TextField(
++          controller: commentController,
++          maxLines: 3,
++          decoration: const InputDecoration(
++            labelText: 'Comment (optional)',
++            border: OutlineInputBorder(),
++          ),
++          onChanged: onCommentChanged,
++        ),
++      ],
++    );
++  }
++}
++
++class _StickyFooter extends StatelessWidget {
++  final VoidCallback? onPressed;
++  final bool isLoading;
++
++  const _StickyFooter({required this.onPressed, required this.isLoading});
++
++  @override
++  Widget build(BuildContext context) {
++    return Container(
++      padding: const EdgeInsets.all(AppTokens.space4),
++      decoration: BoxDecoration(
++        color: AppTokens.surface,
++        boxShadow: [
++          BoxShadow(
++            color: Colors.black.withOpacity(0.05),
++            blurRadius: 10,
++            offset: const Offset(0, -5),
++          ),
++        ],
++      ),
++      child: SizedBox(
++        width: double.infinity,
++        child: ElevatedButton(
++          style: ElevatedButton.styleFrom(
++            backgroundColor: AppTokens.brand,
++            foregroundColor: Colors.white,
++            padding: const EdgeInsets.symmetric(vertical: AppTokens.space4),
++            shape: const StadiumBorder(),
++            elevation: 4,
++          ),
++          onPressed: onPressed,
++          child: isLoading
++              ? const SizedBox(
++                  height: 24,
++                  width: 24,
++                  child: CircularProgressIndicator(
++                    strokeWidth: 2,
++                    color: Colors.white,
++                  ),
++                )
++              : const Row(
++                  mainAxisAlignment: MainAxisAlignment.center,
++                  children: [
++                    Icon(Icons.bolt, size: 20),
++                    SizedBox(width: 8),
++                    Text(
++                      'Book',
++                      style:
++                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
++                    ),
++                  ],
++                ),
++        ),
++      ),
++    );
++  }
++}
+diff --git a/lib/features/ride_search/presentation/provider/booking_provider.dart b/lib/features/ride_search/presentation/provider/booking_provider.dart
+--- a/lib/features/ride_search/presentation/provider/booking_provider.dart
++++ b/lib/features/ride_search/presentation/provider/booking_provider.dart
+@@ -1,99 +1,101 @@
+-import 'package:flutter/foundation.dart';
+-
+-import '../../domain/entities/booking_request.dart';
+-import '../../domain/entities/booking_result.dart';
+-import '../../domain/entities/booking_status.dart';
+-import '../../domain/entities/passenger.dart';
+-import '../../domain/entities/ride.dart';
+-import '../../domain/usecases/book_ride_usecase.dart';
+-
+-class BookingProvider extends ChangeNotifier {
+-  final BookRideUseCase bookRideUseCase;
+-
+-  BookingProvider(this.bookRideUseCase);
+-
+-  Ride? _ride;
+-  Passenger? _passenger;
+-  String _comment = '';
+-  int _seats = 1;
+-
+-  BookingResult? _result;
+-  bool _isSubmitting = false;
+-  String? _errorMessage;
+-
+-  Ride? get ride => _ride;
+-  Passenger? get passenger => _passenger;
+-  String get comment => _comment;
+-  int get seats => _seats;
+-  BookingResult? get result => _result;
+-  bool get isSubmitting => _isSubmitting;
+-  String? get errorMessage => _errorMessage;
+-
+-  void startBooking({
+-    required Ride ride,
+-    Passenger? passenger,
+-    int seats = 1,
+-  }) {
+-    _ride = ride;
+-    _passenger = passenger;
+-    _seats = seats;
+-    _comment = '';
+-    _result = null;
+-    _errorMessage = null;
+-    notifyListeners();
+-  }
+-
+-  void setPassenger(Passenger passenger) {
+-    _passenger = passenger;
+-    notifyListeners();
+-  }
+-
+-  void updateComment(String value) {
+-    _comment = value;
+-    notifyListeners();
+-  }
+-
+-  void updateSeats(int value) {
+-    _seats = value;
+-    notifyListeners();
+-  }
+-
+-  Future<void> submitBooking() async {
+-    final ride = _ride;
+-    final passenger = _passenger;
+-    if (ride == null) {
+-      _errorMessage = 'Ride not set.';
+-      notifyListeners();
+-      return;
+-    }
+-    if (passenger == null) {
+-      _errorMessage = 'Passenger not set.';
+-      notifyListeners();
+-      return;
+-    }
+-
+-    _isSubmitting = true;
+-    _errorMessage = null;
+-    notifyListeners();
+-
+-    final request = BookingRequest(
+-      ride: ride,
+-      passenger: passenger,
+-      seats: _seats,
+-      comment: _comment,
+-      requestedAt: DateTime.now(),
+-    );
+-
+-    try {
+-      _result = await bookRideUseCase(request);
+-    } catch (e) {
+-      _errorMessage = e.toString();
+-    } finally {
+-      _isSubmitting = false;
+-      notifyListeners();
+-    }
+-  }
+-
+-  bool get isConfirmed => _result?.status == BookingStatus.confirmed;
+-  bool get isPending => _result?.status == BookingStatus.pendingDriver;
+-}
++import 'package:flutter/foundation.dart';
++
++import '../../domain/entities/booking_request.dart';
++import '../../domain/entities/booking_result.dart';
++import '../../domain/entities/booking_status.dart';
++import '../../domain/entities/passenger.dart';
++import '../../domain/entities/ride.dart';
++import '../../application/usecases/book_ride_usecase.dart';
++import '../../../../core/error/failure.dart';
++import '../../../../core/error/failure_mapper.dart';
++
++class BookingProvider extends ChangeNotifier {
++  final BookRideUseCase bookRideUseCase;
++
++  BookingProvider(this.bookRideUseCase);
++
++  Ride? _ride;
++  Passenger? _passenger;
++  String _comment = '';
++  int _seats = 1;
++
++  BookingResult? _result;
++  bool _isSubmitting = false;
++  Failure? _failure;
++Ride? get ride => _ride;
++  Passenger? get passenger => _passenger;
++  String get comment => _comment;
++  int get seats => _seats;
++  BookingResult? get result => _result;
++  bool get isSubmitting => _isSubmitting;
++  String? get errorMessage => _failure?.userMessage;
++  Failure? get failure => _failure;
++
++  void startBooking({
++    required Ride ride,
++    Passenger? passenger,
++    int seats = 1,
++  }) {
++    _ride = ride;
++    _passenger = passenger;
++    _seats = seats;
++    _comment = '';
++    _result = null;
++    _failure = null;
++    notifyListeners();
++  }
++
++  void setPassenger(Passenger passenger) {
++    _passenger = passenger;
++    notifyListeners();
++  }
++
++  void updateComment(String value) {
++    _comment = value;
++    notifyListeners();
++  }
++
++  void updateSeats(int value) {
++    _seats = value;
++    notifyListeners();
++  }
++
++  Future<void> submitBooking() async {
++    final ride = _ride;
++    final passenger = _passenger;
++    if (ride == null) {
++      _errorMessage = 'Ride not set.';
++      notifyListeners();
++      return;
++    }
++    if (passenger == null) {
++      _errorMessage = 'Passenger not set.';
++      notifyListeners();
++      return;
++    }
++
++    _isSubmitting = true;
++    _failure = null;
++    notifyListeners();
++
++    final request = BookingRequest(
++      ride: ride,
++      passenger: passenger,
++      seats: _seats,
++      comment: _comment,
++      requestedAt: DateTime.now(),
++    );
++
++    try {
++      _result = await bookRideUseCase(request);
++    } catch (e) {
++      _failure = FailureMapper.from(e);
++    } finally {
++      _isSubmitting = false;
++      notifyListeners();
++    }
++  }
++
++  bool get isConfirmed => _result?.status == BookingStatus.confirmed;
++  bool get isPending => _result?.status == BookingStatus.pendingDriver;
++}
+diff --git a/lib/features/ride_search/presentation/provider/ride_search_provider.dart b/lib/features/ride_search/presentation/provider/ride_search_provider.dart
+--- a/lib/features/ride_search/presentation/provider/ride_search_provider.dart
++++ b/lib/features/ride_search/presentation/provider/ride_search_provider.dart
+@@ -1,57 +1,59 @@
+-import 'package:flutter/foundation.dart';
+-
+-import '../../domain/entities/ride.dart';
+-import '../../domain/entities/search_filters.dart';
+-import '../../domain/usecases/search_rides_usecase.dart';
+-
+-class RideSearchProvider extends ChangeNotifier {
+-  final SearchRidesUseCase searchRidesUseCase;
+-
+-  RideSearchProvider(this.searchRidesUseCase)
+-      : _filters = SearchFilters.initial();
+-
+-  SearchFilters _filters;
+-  List<Ride> _rides = [];
+-  bool _isLoading = false;
+-  String? _errorMessage;
+-
+-  SearchFilters get filters => _filters;
+-  List<Ride> get rides => _rides;
+-  bool get isLoading => _isLoading;
+-  String? get errorMessage => _errorMessage;
+-
+-  void updateFromCity(String value) {
+-    _filters = _filters.copyWith(fromCity: value);
+-    notifyListeners();
+-  }
+-
+-  void updateToCity(String value) {
+-    _filters = _filters.copyWith(toCity: value);
+-    notifyListeners();
+-  }
+-
+-  void updateDate(DateTime date) {
+-    _filters = _filters.copyWith(date: date);
+-    notifyListeners();
+-  }
+-
+-  void updateSeats(int seats) {
+-    _filters = _filters.copyWith(seats: seats);
+-    notifyListeners();
+-  }
+-
+-  Future<void> searchRides() async {
+-    _isLoading = true;
+-    _errorMessage = null;
+-    notifyListeners();
+-
+-    try {
+-      _rides = await searchRidesUseCase(_filters);
+-    } catch (e) {
+-      _errorMessage = e.toString();
+-    } finally {
+-      _isLoading = false;
+-      notifyListeners();
+-    }
+-  }
+-}
++import 'package:flutter/foundation.dart';
++
++import '../../domain/entities/ride.dart';
++import '../../domain/entities/search_filters.dart';
++import '../../application/usecases/search_rides_usecase.dart';
++import '../../../../core/error/failure.dart';
++import '../../../../core/error/failure_mapper.dart';
++
++class RideSearchProvider extends ChangeNotifier {
++  final SearchRidesUseCase searchRidesUseCase;
++
++  RideSearchProvider(this.searchRidesUseCase)
++      : _filters = SearchFilters.initial();
++
++  SearchFilters _filters;
++  List<Ride> _rides = [];
++  bool _isLoading = false;
++  Failure? _failure;
++SearchFilters get filters => _filters;
++  List<Ride> get rides => _rides;
++  bool get isLoading => _isLoading;
++  String? get errorMessage => _failure?.userMessage;
++  Failure? get failure => _failure;
++
++  void updateFromCity(String value) {
++    _filters = _filters.copyWith(fromCity: value);
++    notifyListeners();
++  }
++
++  void updateToCity(String value) {
++    _filters = _filters.copyWith(toCity: value);
++    notifyListeners();
++  }
++
++  void updateDate(DateTime date) {
++    _filters = _filters.copyWith(date: date);
++    notifyListeners();
++  }
++
++  void updateSeats(int seats) {
++    _filters = _filters.copyWith(seats: seats);
++    notifyListeners();
++  }
++
++  Future<void> searchRides() async {
++    _isLoading = true;
++    _failure = null;
++    notifyListeners();
++
++    try {
++      _rides = await searchRidesUseCase(_filters);
++    } catch (e) {
++      _failure = FailureMapper.from(e);
++    } finally {
++      _isLoading = false;
++      notifyListeners();
++    }
++  }
++}
