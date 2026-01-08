@@ -11,8 +11,23 @@ abstract class AuthRepository {
   /// Start signup using credential (e.g. email/password signup).
   Future<void> signUp(AuthCredential credential);
 
-  /// Verify OTP (step 2 of signup or OTP login).
+  /// Verify OTP for email-based flows (step 2 of signup or OTP login).
   Future<AuthUser> verifyOtp(OtpVerifyCredential credential);
+
+  /// Requests a phone OTP (WhatsApp preferred, with SMS fallback).
+  Future<void> requestPhoneOtp(PhoneOtpStartCredential credential);
+
+  /// Verifies a phone OTP and returns the authenticated user.
+  Future<AuthUser> verifyPhoneOtp(PhoneOtpVerifyCredential credential);
+
+  /// Requests a password reset email (magic link).
+  Future<void> requestPasswordReset(String email);
+
+  /// Changes the password for the current authenticated user.
+  Future<void> changePassword(String newPassword);
+
+  /// Resends verification email for signup confirmation.
+  Future<void> resendEmailVerification(String email);
 
   /// Logs the user out.
   Future<void> signOut();
@@ -20,4 +35,3 @@ abstract class AuthRepository {
   /// A stream to listen to auth state changes (Logged In <-> Logged Out).
   Stream<AuthUser?> get authStateChanges;
 }
-

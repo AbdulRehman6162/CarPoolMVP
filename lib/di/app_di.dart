@@ -6,6 +6,9 @@ import '../core/platform/chat_launcher.dart';
 import '../services/url_launcher_chat_launcher.dart';
 import '../core/session/session_provider.dart';
 import '../core/session/session_repository.dart';
+import '../core/auth_flow/auth_flow_provider.dart';
+import '../core/platform/biometric_auth.dart';
+import '../services/noop_biometric_auth.dart';
 
 // ------------------- MY RIDES -------------------
 import '../features/my_rides/data/datasources/my_rides_remote_data_source.dart';
@@ -140,8 +143,18 @@ final getMyRideDetailsUseCase = GetMyRideDetailsUseCase(myRidesRepo);
       ChangeNotifierProvider<SessionProvider>(
         create: (ctx) => SessionProvider(ctx.read<SessionRepository>()),
       ),
+      Provider<BiometricAuth>(
+        create: (_) => NoopBiometricAuth(),
+      ),
+      ChangeNotifierProvider<AuthFlowProvider>(
+        create: (_) => AuthFlowProvider(),
+      ),
       ChangeNotifierProvider<AuthProvider>(
-        create: (ctx) => AuthProvider(ctx.read<AuthRepositoryImpl>()),
+        create: (ctx) => AuthProvider(
+          ctx.read<AuthRepositoryImpl>(),
+          authFlow: ctx.read<AuthFlowProvider>(),
+          biometricAuth: ctx.read<BiometricAuth>(),
+        ),
       ),
 
       // Ride Search

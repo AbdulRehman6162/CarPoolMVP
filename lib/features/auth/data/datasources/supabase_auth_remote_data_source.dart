@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/auth_user_model.dart';
+import '../../domain/entities/auth_credential.dart';
 import 'auth_remote_data_source.dart';
 
 /// Supabase-backed implementation of [AuthRemoteDataSource].
@@ -94,6 +95,55 @@ class SupabaseAuthRemoteDataSource implements AuthRemoteDataSource {
     return OtpType.values.first;
   }
 
+
+@override
+Future<void> requestPhoneOtp({
+  required String phoneE164,
+  required OtpChannel preferredChannel,
+}) async {
+  // Supabase supports SMS OTP. WhatsApp OTP is not supported natively.
+  if (preferredChannel == OtpChannel.whatsapp) {
+    throw UnsupportedError('WhatsApp OTP not supported by Supabase');
+  }
+
+  await _client.auth.signInWithOtp(phone: phoneE164);
+}
+
+@override
+Future<AuthUserModel> verifyPhoneOtp({
+  required String phoneE164,
+  required String code,
+}) async {
+  final res = await _client.auth.verifyOTP(
+    phone: phoneE164,
+    token: code,
+    type: OtpType.sms,
+  );
+
+  final user = res.user;
+  if (user == null) {
+    throw Exception('OTP verification failed.');
+  }
+  return _mapUser(user);
+}
+
+@override
+Future<void> requestPasswordReset(String email) async {
+  await _client.auth.resetPasswordForEmail(email);
+}
+
+@override
+Future<void> changePassword(String newPassword) async {
+  await _client.auth.updateUser(UserAttributes(password: newPassword));
+}
+
+@override
+Future<void> resendEmailVerification(String email) async {
+  await _client.auth.resend(
+    type: OtpType.signup,
+    email: email,
+  );
+}
   AuthUserModel _mapUser(User user) {
     final email = user.email ?? '';
     final meta = user.userMetadata ?? const <String, dynamic>{};

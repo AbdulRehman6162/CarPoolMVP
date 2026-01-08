@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../core/design_system/theme.dart';
 import '../core/session/session_provider.dart';
+import '../core/auth_flow/auth_flow_provider.dart';
 import 'router.dart';
 
 class CarpoolApp extends StatefulWidget {
@@ -24,7 +25,8 @@ class _CarpoolAppState extends State<CarpoolApp> {
     if (_initialized) return;
 
     final session = context.read<SessionProvider>();
-    _router = createRouter(session: session);
+    final authFlow = context.read<AuthFlowProvider>();
+    _router = createRouter(session: session, authFlow: authFlow);
     _initialized = true;
   }
 

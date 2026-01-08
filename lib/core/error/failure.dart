@@ -59,3 +59,12 @@ class NotImplementedFailure extends Failure {
         );
 }
 
+class UnsupportedFailure extends Failure {
+  const UnsupportedFailure({String? userMessage, String? debugMessage})
+      : super(
+          code: 'unsupported',
+          userMessage: userMessage ?? 'This feature is not supported on this device.',
+          debugMessage: debugMessage,
+        );
+}
+

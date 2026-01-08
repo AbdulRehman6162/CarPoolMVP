@@ -56,6 +56,12 @@ class _LoginPageState extends State<LoginPage> {
               _SocialButton(label: 'Continue with Google', icon: Icons.g_mobiledata),
               const SizedBox(height: 12),
               _SocialButton(label: 'Continue with Apple', icon: Icons.apple),
+              const SizedBox(height: 12),
+              _SocialButton(label: 'Continue with Phone', icon: Icons.phone, onPressed: () {
+                final from = widget.from;
+                final qp = from == null ? '' : '?from=${Uri.encodeComponent(from)}';
+                context.push('/phone-login$qp');
+              }),
 
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
@@ -94,7 +100,9 @@ class _LoginPageState extends State<LoginPage> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () {}, // TODO: Forgot Password Route
+                  onPressed: () {
+                    context.push('/forgot-password');
+                  },
                   child: const Text('Forgot password?'),
                 ),
               ),
@@ -137,12 +145,13 @@ class _LoginPageState extends State<LoginPage> {
 class _SocialButton extends StatelessWidget {
   final String label;
   final IconData icon;
-  const _SocialButton({required this.label, required this.icon});
+  final VoidCallback? onPressed;
+  const _SocialButton({required this.label, required this.icon, this.onPressed});
 
   @override
   Widget build(BuildContext context) {
     return OutlinedButton.icon(
-      onPressed: () {},
+      onPressed: onPressed,
       icon: Icon(icon, color: AppTokens.text),
       label: Text(label, style: const TextStyle(color: AppTokens.text)),
       style: OutlinedButton.styleFrom(

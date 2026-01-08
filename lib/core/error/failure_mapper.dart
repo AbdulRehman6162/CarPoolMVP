@@ -3,6 +3,9 @@ import 'failure.dart';
 class FailureMapper {
   static Failure from(Object error, [StackTrace? st]) {
     if (error is Failure) return error;
+    if (error is UnsupportedError) {
+      return const UnsupportedFailure();
+    }
     // Add richer mappings as you integrate Supabase/Firebase exceptions.
     final msg = error.toString();
 
@@ -20,6 +23,9 @@ class FailureMapper {
       );
     }
 
+    if (msg.toLowerCase().contains('unsupported') || msg.toLowerCase().contains('not supported')) {
+      return UnsupportedFailure(debugMessage: msg);
+    }
     if (msg.toLowerCase().contains('auth') ||
         msg.toLowerCase().contains('login') ||
         msg.toLowerCase().contains('password') ||
@@ -33,4 +39,3 @@ class FailureMapper {
     return UnknownFailure(debugMessage: msg);
   }
 }
-

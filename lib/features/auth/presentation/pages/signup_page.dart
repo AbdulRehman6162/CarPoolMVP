@@ -76,7 +76,8 @@ class _SignupPageState extends State<SignupPage> {
                   onPressed: () async {
                     final success = await auth.signup(_nameCtrl.text, _emailCtrl.text, _passCtrl.text);
                     if (success && context.mounted) {
-                      context.push('/otp-verification', extra: _emailCtrl.text);
+                      final email = _emailCtrl.text.trim();
+                      context.push('/otp-verification?type=email&target=${Uri.encodeComponent(email)}');
                     }
                   },
                 ),

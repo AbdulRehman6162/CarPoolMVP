@@ -99,6 +99,39 @@ class AuthRepositoryImpl implements AuthRepository {
     return user;
   }
 
+@override
+Future<void> requestPhoneOtp(PhoneOtpStartCredential credential) async {
+  await _remote.requestPhoneOtp(
+    phoneE164: credential.phoneE164,
+    preferredChannel: credential.preferredChannel,
+  );
+}
+
+@override
+Future<AuthUser> verifyPhoneOtp(PhoneOtpVerifyCredential credential) async {
+  final model = await _remote.verifyPhoneOtp(
+    phoneE164: credential.phoneE164,
+    code: credential.code,
+  );
+  await _persistAndEmit(model);
+  return model.toEntity();
+}
+
+@override
+Future<void> requestPasswordReset(String email) async {
+  await _remote.requestPasswordReset(email);
+}
+
+@override
+Future<void> changePassword(String newPassword) async {
+  await _remote.changePassword(newPassword);
+}
+
+@override
+Future<void> resendEmailVerification(String email) async {
+  await _remote.resendEmailVerification(email);
+}
+
   @override
   Future<void> signOut() async {
     await _remote.logout();
@@ -118,4 +151,3 @@ class AuthRepositoryImpl implements AuthRepository {
     _controller.close();
   }
 }
-
