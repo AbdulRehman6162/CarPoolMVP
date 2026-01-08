@@ -9,7 +9,7 @@ class RequestPhoneOtpUseCase {
 
   Future<Result<void>> call({
     required String phoneE164,
-    required OtpChannel preferredChannel,
+    required AuthOtpChannel preferredChannel,
   }) async {
     try {
       await _repository.requestPhoneOtp(

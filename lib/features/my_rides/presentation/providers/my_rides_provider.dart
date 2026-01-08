@@ -5,8 +5,6 @@ import '../../application/usecases/get_my_ride_details_usecase.dart';
 import '../../application/usecases/get_my_rides_usecase.dart';
 import '../../domain/entities/my_ride.dart';
 import '../utils/my_ride_ui_extensions.dart';
-import '../../../../core/error/failure.dart';
-import '../../../../core/error/failure_mapper.dart';
 
 enum MyRidesTab { all, upcoming, completed }
 

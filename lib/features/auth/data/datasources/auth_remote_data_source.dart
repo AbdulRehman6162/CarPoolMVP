@@ -34,7 +34,7 @@ abstract class AuthRemoteDataSource {
   /// [UnsupportedError] so callers can fall back to SMS.
   Future<void> requestPhoneOtp({
     required String phoneE164,
-    required OtpChannel preferredChannel,
+    required AuthOtpChannel preferredChannel,
   });
 
   /// Verifies phone OTP and returns an authenticated user model.

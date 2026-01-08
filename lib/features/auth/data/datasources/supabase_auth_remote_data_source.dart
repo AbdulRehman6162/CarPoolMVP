@@ -99,10 +99,10 @@ class SupabaseAuthRemoteDataSource implements AuthRemoteDataSource {
 @override
 Future<void> requestPhoneOtp({
   required String phoneE164,
-  required OtpChannel preferredChannel,
+  required AuthOtpChannel preferredChannel,
 }) async {
   // Supabase supports SMS OTP. WhatsApp OTP is not supported natively.
-  if (preferredChannel == OtpChannel.whatsapp) {
+  if (preferredChannel == AuthOtpChannel.whatsapp) {
     throw UnsupportedError('WhatsApp OTP not supported by Supabase');
   }
 

@@ -1,0 +1,132 @@
+diff --git a/lib/features/auth/domain/entities/auth_credential.dart b/lib/features/auth/domain/entities/auth_credential.dart
+--- a/lib/features/auth/domain/entities/auth_credential.dart
++++ b/lib/features/auth/domain/entities/auth_credential.dart
+@@ -1,6 +1,6 @@
+ enum OAuthProvider { google, apple, linkedin }
+ 
+-enum OtpChannel { whatsapp, sms, email }
++enum AuthOtpChannel { whatsapp, sms, email }
+ 
+ sealed class AuthCredential {
+   const AuthCredential();
+@@ -36,7 +36,7 @@
+ 
+ class PhoneOtpStartCredential extends AuthCredential {
+   final String phoneE164;
+-  final OtpChannel preferredChannel;
++  final AuthOtpChannel preferredChannel;
+   const PhoneOtpStartCredential(this.phoneE164, {required this.preferredChannel});
+ }
+ 
+
+diff --git a/lib/features/auth/data/datasources/auth_remote_data_source.dart b/lib/features/auth/data/datasources/auth_remote_data_source.dart
+--- a/lib/features/auth/data/datasources/auth_remote_data_source.dart
++++ b/lib/features/auth/data/datasources/auth_remote_data_source.dart
+@@ -34,7 +34,7 @@
+   /// [UnsupportedError] so callers can fall back to SMS.
+   Future<void> requestPhoneOtp({
+     required String phoneE164,
+-    required OtpChannel preferredChannel,
++    required AuthOtpChannel preferredChannel,
+   });
+ 
+   /// Verifies phone OTP and returns an authenticated user model.
+
+diff --git a/lib/features/auth/data/datasources/auth_mock_data_source.dart b/lib/features/auth/data/datasources/auth_mock_data_source.dart
+--- a/lib/features/auth/data/datasources/auth_mock_data_source.dart
++++ b/lib/features/auth/data/datasources/auth_mock_data_source.dart
+@@ -36,7 +36,7 @@
+   @override
+   Future<void> requestPhoneOtp({
+     required String phoneE164,
+-    required OtpChannel preferredChannel,
++    required AuthOtpChannel preferredChannel,
+   }) async {
+     await Future.delayed(const Duration(milliseconds: 250));
+   }
+
+diff --git a/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart b/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart
+--- a/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart
++++ b/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart
+@@ -99,10 +99,10 @@
+ @override
+ Future<void> requestPhoneOtp({
+   required String phoneE164,
+-  required OtpChannel preferredChannel,
++  required AuthOtpChannel preferredChannel,
+ }) async {
+   // Supabase supports SMS OTP. WhatsApp OTP is not supported natively.
+-  if (preferredChannel == OtpChannel.whatsapp) {
++  if (preferredChannel == AuthAuthOtpChannel.whatsapp) {
+     throw UnsupportedError('WhatsApp OTP not supported by Supabase');
+   }
+ 
+
+diff --git a/lib/features/auth/application/usecases/request_phone_otp_usecase.dart b/lib/features/auth/application/usecases/request_phone_otp_usecase.dart
+--- a/lib/features/auth/application/usecases/request_phone_otp_usecase.dart
++++ b/lib/features/auth/application/usecases/request_phone_otp_usecase.dart
+@@ -9,7 +9,7 @@
+ 
+   Future<Result<void>> call({
+     required String phoneE164,
+-    required OtpChannel preferredChannel,
++    required AuthOtpChannel preferredChannel,
+   }) async {
+     try {
+       await _repository.requestPhoneOtp(
+
+diff --git a/lib/features/auth/presentation/providers/auth_provider.dart b/lib/features/auth/presentation/providers/auth_provider.dart
+--- a/lib/features/auth/presentation/providers/auth_provider.dart
++++ b/lib/features/auth/presentation/providers/auth_provider.dart
+@@ -5,7 +5,6 @@
+ import '../../../../core/auth_flow/auth_flow_provider.dart';
+ import '../../../../core/auth_flow/auth_flow_state.dart';
+ import '../../../../core/error/failure.dart';
+-import '../../../../core/error/failure_mapper.dart';
+ import '../../../../core/platform/biometric_auth.dart';
+ import '../../../../core/result/result.dart';
+ import '../../application/usecases/change_password_usecase.dart';
+@@ -178,7 +177,7 @@
+ 
+ Future<bool> requestPhoneOtp(
+   String phoneE164, {
+-  OtpChannel preferred = OtpChannel.whatsapp,
++  AuthOtpChannel preferred = AuthOtpChannel.whatsapp,
+ }) async {
+   _isLoading = true;
+   _failure = null;
+@@ -190,12 +189,12 @@
+   );
+ 
+   // WhatsApp preferred → fall back to SMS when unsupported.
+-  if (preferred == OtpChannel.whatsapp &&
++  if (preferred == AuthOtpChannel.whatsapp &&
+       res is FailureResult<void> &&
+       (res.failure is UnsupportedFailure || res.failure is NotImplementedFailure)) {
+     res = await _requestPhoneOtp(
+       phoneE164: phoneE164,
+-      preferredChannel: OtpChannel.sms,
++      preferredChannel: AuthOtpChannel.sms,
+     );
+   }
+ 
+@@ -369,4 +368,4 @@
+     _sub.cancel();
+     super.dispose();
+   }
+-}
++}
+
+diff --git a/lib/features/my_rides/presentation/providers/my_rides_provider.dart b/lib/features/my_rides/presentation/providers/my_rides_provider.dart
+--- a/lib/features/my_rides/presentation/providers/my_rides_provider.dart
++++ b/lib/features/my_rides/presentation/providers/my_rides_provider.dart
+@@ -5,8 +5,6 @@
+ import '../../application/usecases/get_my_rides_usecase.dart';
+ import '../../domain/entities/my_ride.dart';
+ import '../utils/my_ride_ui_extensions.dart';
+-import '../../../../core/error/failure.dart';
+-import '../../../../core/error/failure_mapper.dart';
+ 
+ enum MyRidesTab { all, upcoming, completed }
+ 
+

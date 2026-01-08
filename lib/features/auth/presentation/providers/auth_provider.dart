@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import '../../../../core/auth_flow/auth_flow_provider.dart';
 import '../../../../core/auth_flow/auth_flow_state.dart';
 import '../../../../core/error/failure.dart';
-import '../../../../core/error/failure_mapper.dart';
 import '../../../../core/platform/biometric_auth.dart';
 import '../../../../core/result/result.dart';
 import '../../application/usecases/change_password_usecase.dart';
@@ -178,7 +177,7 @@ class AuthProvider extends ChangeNotifier {
 
 Future<bool> requestPhoneOtp(
   String phoneE164, {
-  OtpChannel preferred = OtpChannel.whatsapp,
+  AuthOtpChannel preferred = AuthOtpChannel.whatsapp,
 }) async {
   _isLoading = true;
   _failure = null;
@@ -190,12 +189,12 @@ Future<bool> requestPhoneOtp(
   );
 
   // WhatsApp preferred → fall back to SMS when unsupported.
-  if (preferred == OtpChannel.whatsapp &&
+  if (preferred == AuthOtpChannel.whatsapp &&
       res is FailureResult<void> &&
       (res.failure is UnsupportedFailure || res.failure is NotImplementedFailure)) {
     res = await _requestPhoneOtp(
       phoneE164: phoneE164,
-      preferredChannel: OtpChannel.sms,
+      preferredChannel: AuthOtpChannel.sms,
     );
   }
 

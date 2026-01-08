@@ -36,7 +36,7 @@ class MockAuthRemoteDataSource implements AuthRemoteDataSource {
   @override
   Future<void> requestPhoneOtp({
     required String phoneE164,
-    required OtpChannel preferredChannel,
+    required AuthOtpChannel preferredChannel,
   }) async {
     await Future.delayed(const Duration(milliseconds: 250));
   }

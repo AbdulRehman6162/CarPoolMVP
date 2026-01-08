@@ -1,6 +1,6 @@
 enum OAuthProvider { google, apple, linkedin }
 
-enum OtpChannel { whatsapp, sms, email }
+enum AuthOtpChannel { whatsapp, sms, email }
 
 sealed class AuthCredential {
   const AuthCredential();
@@ -36,7 +36,7 @@ class OAuthSignInCredential extends AuthCredential {
 
 class PhoneOtpStartCredential extends AuthCredential {
   final String phoneE164;
-  final OtpChannel preferredChannel;
+  final AuthOtpChannel preferredChannel;
   const PhoneOtpStartCredential(this.phoneE164, {required this.preferredChannel});
 }
 
