@@ -80,9 +80,7 @@ class _MissingEmailArgs extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: Text(
-            'Verify Email requires an email.
-
-'
+            'Verify Email requires an email.'
             "Fix: navigate to '/verify-email?email=you@example.com'",
             textAlign: TextAlign.center,
           ),
@@ -101,9 +99,7 @@ class _MissingOtpArgs extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: Text(
-            'OTP Verification requires query params.
-
-'
+            'OTP Verification requires query params.'
             "Fix: navigate to '/otp-verification?type=email&target=you@example.com'",
             textAlign: TextAlign.center,
           ),

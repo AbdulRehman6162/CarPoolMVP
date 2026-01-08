@@ -21,8 +21,7 @@ class VerifyEmailPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('We sent a verification link to:
-$email'),
+            Text('We sent a verification link to:$email'),
             const SizedBox(height: 12),
             const Text('Open your email, verify your account, then return here.'),
             const SizedBox(height: 12),
