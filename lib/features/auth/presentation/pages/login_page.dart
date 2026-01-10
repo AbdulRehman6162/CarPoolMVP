@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/design_system/tokens.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../providers/auth_provider.dart';
+import '../../domain/entities/auth_credential.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, this.from});
@@ -53,9 +54,21 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 32),
 
               // Social Buttons (Visual Only for now)
-              _SocialButton(label: 'Continue with Google', icon: Icons.g_mobiledata),
+              _SocialButton(
+                label: 'Continue with Google',
+                icon: Icons.g_mobiledata,
+                onPressed: () => context
+                    .read<AuthProvider>()
+                    .signInWithOAuth(OAuthProvider.google),
+              ),
               const SizedBox(height: 12),
-              _SocialButton(label: 'Continue with Apple', icon: Icons.apple),
+              _SocialButton(
+                label: 'Continue with Apple',
+                icon: Icons.apple,
+                onPressed: () => context
+                    .read<AuthProvider>()
+                    .signInWithOAuth(OAuthProvider.apple),
+              ),
               const SizedBox(height: 12),
               _SocialButton(label: 'Continue with Phone', icon: Icons.phone, onPressed: () {
                 final from = widget.from;

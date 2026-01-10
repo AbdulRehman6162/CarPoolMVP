@@ -1,4 +1,5 @@
 import '../../domain/entities/auth_credential.dart';
+import '../../domain/entities/auth_event.dart';
 import '../models/auth_user_model.dart';
 
 abstract class AuthRemoteDataSource {
@@ -7,6 +8,9 @@ abstract class AuthRemoteDataSource {
   /// - Emits a user when a session becomes available
   /// - Emits null when the session ends / user signs out
   Stream<AuthUserModel?> get authStateChanges;
+
+  /// Emits auth events (provider-specific) mapped to domain-safe types.
+  Stream<AuthEventType> get authEvents;
 
   /// Returns current remote user if a valid session exists.
   Future<AuthUserModel?> getCurrentUser();
@@ -26,6 +30,13 @@ abstract class AuthRemoteDataSource {
 
   /// Completes OTP / verification step (when enabled) for email.
   Future<AuthUserModel> verifyOtp(String email, String otp);
+
+  /// Starts OAuth sign-in for supported providers (Google/Apple/etc).
+  Future<void> startOAuthSignIn({
+    required OAuthProvider provider,
+    String? redirectTo,
+  });
+
 
   /// Requests a phone OTP via the preferred channel.
   ///

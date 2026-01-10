@@ -59,7 +59,7 @@ GoRouter createRouter({
       }
 
       // If logged in, keep user out of auth screens (except password update/verify-email if gated).
-      if (isLoggedIn && (isLogin || isSignup || isPhoneLogin || isForgotPassword)) {
+      if (isLoggedIn && (isLogin || isSignup || isPhoneLogin || isForgotPassword || isAuthCallback(state))) {
         return '/';
       }
 
@@ -71,4 +71,8 @@ GoRouter createRouter({
       ...pickerRoutes(),
     ],
   );
+}
+bool isAuthCallback(GoRouterState state) {
+  final loc = state.matchedLocation;
+  return loc == '/auth/callback' || loc == '/auth/recovery';
 }

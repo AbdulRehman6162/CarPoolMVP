@@ -85,7 +85,7 @@ class AppDI {
       EmailPasswordSignInStrategy(authRemoteDataSource),
       EmailPasswordSignUpStrategy(authRemoteDataSource),
       OtpVerifyStrategy(authRemoteDataSource),
-      OAuthSignInStrategy(),
+      OAuthSignInStrategy(authRemoteDataSource),
     ];
     final authRegistry = AuthStrategyRegistry(authStrategies);
     final authRepo = AuthRepositoryImpl(

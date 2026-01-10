@@ -1,4 +1,7 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as sb;
+
+import '../../../../core/env/env.dart';
+import '../../domain/entities/auth_event.dart';
 
 import '../models/auth_user_model.dart';
 import '../../domain/entities/auth_credential.dart';
@@ -8,7 +11,7 @@ import 'auth_remote_data_source.dart';
 ///
 /// Keeps Supabase dependency isolated to the data layer (Clean Architecture + DIP).
 class SupabaseAuthRemoteDataSource implements AuthRemoteDataSource {
-  final SupabaseClient _client;
+  final sb.SupabaseClient _client;
 
   SupabaseAuthRemoteDataSource(this._client);
 
@@ -18,6 +21,28 @@ class SupabaseAuthRemoteDataSource implements AuthRemoteDataSource {
         final user = state.session?.user ?? _client.auth.currentUser;
         return user == null ? null : _mapUser(user);
       });
+
+  @override
+  Stream<AuthEventType> get authEvents => _client.auth.onAuthStateChange.map((state) {
+        final name = state.event.toString().split('.').last;
+        switch (name) {
+          case 'initialSession':
+            return AuthEventType.initialSession;
+          case 'signedIn':
+            return AuthEventType.signedIn;
+          case 'signedOut':
+            return AuthEventType.signedOut;
+          case 'tokenRefreshed':
+            return AuthEventType.tokenRefreshed;
+          case 'userUpdated':
+            return AuthEventType.userUpdated;
+          case 'passwordRecovery':
+            return AuthEventType.passwordRecovery;
+          default:
+            return AuthEventType.unknown;
+        }
+      });
+
 
 @override
   Future<AuthUserModel?> getCurrentUser() async {
@@ -87,14 +112,27 @@ class SupabaseAuthRemoteDataSource implements AuthRemoteDataSource {
     return _mapUser(user);
   }
 
-  OtpType _otpTypeByName(String name) {
-    for (final t in OtpType.values) {
+  sb.OtpType _otpTypeByName(String name) {
+    for (final t in sb.OtpType.values) {
       if (t.name == name) return t;
     }
     // Fallback (keeps compilation safe across Supabase SDK versions).
-    return OtpType.values.first;
+    return sb.OtpType.values.first;
   }
 
+
+  @override
+  Future<void> startOAuthSignIn({
+    required OAuthProvider provider,
+    String? redirectTo,
+  }) async {
+    final target = redirectTo ?? (Env.authOAuthRedirectUrl.isNotEmpty ? Env.authOAuthRedirectUrl : null);
+    final sbProvider = sb.OAuthProvider.values.firstWhere(
+      (p) => p.name == provider.name,
+      orElse: () => throw UnsupportedError('OAuth provider not supported: ${provider.name}'),
+    );
+    await _client.auth.signInWithOAuth(sbProvider, redirectTo: target);
+  }
 
 @override
 Future<void> requestPhoneOtp({
@@ -117,7 +155,7 @@ Future<AuthUserModel> verifyPhoneOtp({
   final res = await _client.auth.verifyOTP(
     phone: phoneE164,
     token: code,
-    type: OtpType.sms,
+    type: sb.OtpType.sms,
   );
 
   final user = res.user;
@@ -134,17 +172,17 @@ Future<void> requestPasswordReset(String email) async {
 
 @override
 Future<void> changePassword(String newPassword) async {
-  await _client.auth.updateUser(UserAttributes(password: newPassword));
+  await _client.auth.updateUser(sb.UserAttributes(password: newPassword));
 }
 
 @override
 Future<void> resendEmailVerification(String email) async {
   await _client.auth.resend(
-    type: OtpType.signup,
+    type: sb.OtpType.signup,
     email: email,
   );
 }
-  AuthUserModel _mapUser(User user) {
+  AuthUserModel _mapUser(sb.User user) {
     final email = user.email ?? '';
     final meta = user.userMetadata ?? const <String, dynamic>{};
 
@@ -164,7 +202,7 @@ Future<void> resendEmailVerification(String email) async {
     return AuthUserModel(
       id: user.id,
       email: email,
-      name: name.isNotEmpty ? name : (email.isNotEmpty ? email : 'User'),
+      name: name.isNotEmpty ? name : (email.isNotEmpty ? email : 'sb.User'),
       phoneNumber: phone?.isEmpty == true ? null : phone,
       photoUrl: photoUrl?.isEmpty == true ? null : photoUrl,
     );

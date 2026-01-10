@@ -15,8 +15,10 @@ import '../../application/usecases/request_phone_otp_usecase.dart';
 import '../../application/usecases/resend_email_verification_usecase.dart';
 import '../../application/usecases/sign_out_usecase.dart';
 import '../../application/usecases/signup_usecase.dart';
+import '../../application/usecases/start_oauth_signin_usecase.dart';
 import '../../application/usecases/verify_otp_usecase.dart';
 import '../../application/usecases/verify_phone_otp_usecase.dart';
+import '../../domain/entities/auth_event.dart';
 import '../../domain/entities/auth_credential.dart';
 import '../../domain/entities/auth_user.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -27,12 +29,14 @@ class AuthProvider extends ChangeNotifier {
   final BiometricAuth _biometricAuth;
 
   late final StreamSubscription<AuthUser?> _sub;
+  late final StreamSubscription<AuthEventType> _eventSub;
 
   late final GetCurrentUserUseCase _getCurrentUser;
   late final LoginUseCase _login;
   late final SignupUseCase _signup;
   late final VerifyOtpUseCase _verifyOtp;
   late final VerifyPhoneOtpUseCase _verifyPhoneOtp;
+  late final StartOAuthSignInUseCase _startOAuth;
   late final RequestPhoneOtpUseCase _requestPhoneOtp;
   late final SignOutUseCase _signOut;
   late final RequestPasswordResetUseCase _requestPasswordReset;
@@ -55,6 +59,7 @@ class AuthProvider extends ChangeNotifier {
         _signup = SignupUseCase(_repository),
         _verifyOtp = VerifyOtpUseCase(_repository),
         _verifyPhoneOtp = VerifyPhoneOtpUseCase(_repository),
+        _startOAuth = StartOAuthSignInUseCase(_repository),
         _requestPhoneOtp = RequestPhoneOtpUseCase(_repository),
         _signOut = SignOutUseCase(_repository),
         _requestPasswordReset = RequestPasswordResetUseCase(_repository),
@@ -71,6 +76,16 @@ class AuthProvider extends ChangeNotifier {
 
       notifyListeners();
     });
+
+    _eventSub = _repository.authEvents.listen((event) {
+      if (event == AuthEventType.passwordRecovery) {
+        _authFlow.requirePasswordUpdate();
+      }
+      if (event == AuthEventType.signedOut) {
+        _authFlow.clearAll();
+      }
+    });
+
 
     _bootstrap();
   }
@@ -99,9 +114,40 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> refreshCurrentUser() async {
+    final res = await _getCurrentUser();
+    res.when(
+      success: (u) => _user = u,
+      failure: (_) {},
+    );
+    notifyListeners();
+  }
+
+  void markPasswordRecovery() {
+    _authFlow.requirePasswordUpdate();
+  }
+
   void setValidationError(String message) {
     _failure = ValidationFailure(userMessage: message);
     notifyListeners();
+  }
+
+  Future<bool> signInWithOAuth(OAuthProvider provider) async {
+    _isLoading = true;
+    _failure = null;
+    notifyListeners();
+
+    final res = await _startOAuth(provider);
+    _isLoading = false;
+    final ok = res.when(
+      success: (_) => true,
+      failure: (f) {
+        _failure = f;
+        return false;
+      },
+    );
+    notifyListeners();
+    return ok;
   }
 
   Future<bool> login(String email, String password) async {
@@ -366,6 +412,7 @@ Future<bool> requestPhoneOtp(
   @override
   void dispose() {
     _sub.cancel();
+    _eventSub.cancel();
     super.dispose();
   }
 }

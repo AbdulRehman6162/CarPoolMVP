@@ -1,0 +1,91 @@
+diff --git a/lib/app/router.dart b/lib/app/router.dart
+--- a/lib/app/router.dart
++++ b/lib/app/router.dart
+@@ -59,7 +59,7 @@
+       }
+
+ 
+
+       // If logged in, keep user out of auth screens (except password update/verify-email if gated).
+
+-      if (isLoggedIn && (isLogin || isSignup || isPhoneLogin || isForgotPassword || isAuthCallback)) {
+
++      if (isLoggedIn && (isLogin || isSignup || isPhoneLogin || isForgotPassword || isAuthCallback(state))) {
+
+         return '/';
+
+       }
+
+ 
+
+diff --git a/lib/features/auth/application/usecases/start_oauth_signin_usecase.dart b/lib/features/auth/application/usecases/start_oauth_signin_usecase.dart
+--- a/lib/features/auth/application/usecases/start_oauth_signin_usecase.dart
++++ b/lib/features/auth/application/usecases/start_oauth_signin_usecase.dart
+@@ -1,16 +1,22 @@
++import '../../../../core/error/failure_mapper.dart';
+
++import '../../../../core/result/result.dart';
+
+ import '../../domain/entities/auth_credential.dart';
+
+-import '../../domain/repositories/auth_repository.dart';
+
+-import '../../../../core/result/result.dart';
+
+-
+
++import '../../domain/repositories/auth_repository.dart';
+
+
+ /// Starts OAuth sign-in for a provider (Google / Apple / etc).
+
+ ///
+
+-/// Returns void because most OAuth providers complete via deep-link callback and authStateChanges.
+
++/// We trigger the OAuth flow via the repository's unified `signIn` API using an
+
++/// [OAuthSignInCredential]. The underlying provider completes via deep-link callback
+
++/// and/or auth state changes.
+
+ class StartOAuthSignInUseCase {
+
+-  final AuthRepository _repository;
+
+-
+
+-  StartOAuthSignInUseCase(this._repository);
+
+-
+
+-  Future<Result<void>> call(OAuthProvider provider) {
+
+-    return _repository.startOAuthSignIn(provider);
+
++  final AuthRepository _repository;
+
+
++  StartOAuthSignInUseCase(this._repository);
+
+
++  Future<Result<void>> call(OAuthProvider provider) async {
+
++    try {
+
++      // Repository chooses the correct strategy based on credential type.
+
++      await _repository.signIn(OAuthSignInCredential(provider));
+
++      return const Success(null);
+
++    } catch (e, st) {
+
++      return FailureResult(FailureMapper.from(e, st));
+
++    }
+
+   }
+
+ }
+

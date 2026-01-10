@@ -1,0 +1,313 @@
+diff --git a/lib/app/router.dart b/lib/app/router.dart
+--- a/lib/app/router.dart
++++ b/lib/app/router.dart
+@@ -71,4 +71,9 @@
+       ...pickerRoutes(),
+
+     ],
+
+   );
+
+-}
++}
+
++
+
++bool isAuthCallback(GoRouterState state) {
+
++  final path = state.uri.path;
+
++  return path == '/auth/callback' || path == '/auth/recovery';
+
++}
+
+diff --git a/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart b/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart
+--- a/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart
++++ b/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart
+@@ -172,7 +172,7 @@
+ 
+
+ @override
+
+ Future<void> changePassword(String newPassword) async {
+
+-  await _client.auth.updateUser(UserAttributes(password: newPassword));
+
++  await _client.auth.updateUser(sb.UserAttributes(password: newPassword));
+
+ }
+
+ 
+
+ @override
+
+diff --git a/lib/features/auth/domain/entities/auth_event.dart b/lib/features/auth/domain/entities/auth_event.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/auth/domain/entities/auth_event.dart
+@@ -0,0 +1,22 @@
++enum AuthEventType {
+
++  /// Initial session event when provider restores a session on app start.
+
++  initialSession,
+
++
+
++  /// User successfully signed in.
+
++  signedIn,
+
++
+
++  /// User signed out (explicitly or session expired).
+
++  signedOut,
+
++
+
++  /// Token refreshed.
+
++  tokenRefreshed,
+
++
+
++  /// User profile updated.
+
++  userUpdated,
+
++
+
++  /// Password recovery / reset flow triggered.
+
++  passwordRecovery,
+
++
+
++  /// Unknown or unmapped provider event.
+
++  unknown,
+
++}
+
+diff --git a/lib/features/auth/application/usecases/start_oauth_signin_usecase.dart b/lib/features/auth/application/usecases/start_oauth_signin_usecase.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/auth/application/usecases/start_oauth_signin_usecase.dart
+@@ -0,0 +1,21 @@
++import '../../../../core/error/failure_mapper.dart';
+
++import '../../../../core/result/result.dart';
+
++import '../../domain/entities/auth_credential.dart';
+
++import '../../domain/repositories/auth_repository.dart';
+
++
+
++class StartOAuthSignInUseCase {
+
++  final AuthRepository _repository;
+
++  StartOAuthSignInUseCase(this._repository);
+
++
+
++  Future<Result<void>> call(OAuthProvider provider) async {
+
++    try {
+
++      // OAuth sign-in triggers an external browser flow. The repository/strategy may
+
++      // await authStateChanges to produce the user; if so, this call will complete
+
++      // once the session is established.
+
++      await _repository.signIn(OAuthSignInCredential(provider));
+
++      return const Success(null);
+
++    } catch (e, st) {
+
++      return FailureResult(FailureMapper.from(e, st));
+
++    }
+
++  }
+
++}
+
+diff --git a/lib/features/auth/presentation/pages/auth_callback_page.dart b/lib/features/auth/presentation/pages/auth_callback_page.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/auth/presentation/pages/auth_callback_page.dart
+@@ -0,0 +1,43 @@
++import 'package:flutter/material.dart';
+
++import 'package:go_router/go_router.dart';
+
++import 'package:supabase_flutter/supabase_flutter.dart';
+
++
+
++/// Handles OAuth redirect deep links.
+
++///
+
++/// For Supabase PKCE OAuth flows, the app must exchange the redirect URL for a session.
+
++/// This page performs that exchange and then navigates away; routing guards handle
+
++/// any additional gating (email verification, password update, OTP, etc).
+
++class AuthCallbackPage extends StatefulWidget {
+
++  const AuthCallbackPage({super.key});
+
++
+
++  @override
+
++  State<AuthCallbackPage> createState() => _AuthCallbackPageState();
+
++}
+
++
+
++class _AuthCallbackPageState extends State<AuthCallbackPage> {
+
++  @override
+
++  void initState() {
+
++    super.initState();
+
++    // Exchange the deep link for a session.
+
++    WidgetsBinding.instance.addPostFrameCallback((_) async {
+
++      final uri = GoRouterState.of(context).uri;
+
++
+
++      try {
+
++        final dynamic auth = Supabase.instance.client.auth;
+
++        await auth.getSessionFromUrl(uri);
+
++      } catch (_) {
+
++        // If this fails, guards will route user back to login or show appropriate UI.
+
++      }
+
++
+
++      if (!mounted) return;
+
++      context.go('/');
+
++    });
+
++  }
+
++
+
++  @override
+
++  Widget build(BuildContext context) {
+
++    return const Scaffold(
+
++      body: Center(child: CircularProgressIndicator()),
+
++    );
+
++  }
+
++}
+
+diff --git a/lib/features/auth/presentation/pages/auth_recovery_callback_page.dart b/lib/features/auth/presentation/pages/auth_recovery_callback_page.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/auth/presentation/pages/auth_recovery_callback_page.dart
+@@ -0,0 +1,39 @@
++import 'package:flutter/material.dart';
+
++import 'package:go_router/go_router.dart';
+
++import 'package:supabase_flutter/supabase_flutter.dart';
+
++
+
++/// Handles password recovery deep links.
+
++///
+
++/// Exchanges the recovery URL for a session. Router guards should then redirect
+
++/// the user to /update-password as needed.
+
++class AuthRecoveryCallbackPage extends StatefulWidget {
+
++  const AuthRecoveryCallbackPage({super.key});
+
++
+
++  @override
+
++  State<AuthRecoveryCallbackPage> createState() => _AuthRecoveryCallbackPageState();
+
++}
+
++
+
++class _AuthRecoveryCallbackPageState extends State<AuthRecoveryCallbackPage> {
+
++  @override
+
++  void initState() {
+
++    super.initState();
+
++    WidgetsBinding.instance.addPostFrameCallback((_) async {
+
++      final uri = GoRouterState.of(context).uri;
+
++
+
++      try {
+
++        final dynamic auth = Supabase.instance.client.auth;
+
++        await auth.getSessionFromUrl(uri);
+
++      } catch (_) {}
+
++
+
++      if (!mounted) return;
+
++      context.go('/update-password');
+
++    });
+
++  }
+
++
+
++  @override
+
++  Widget build(BuildContext context) {
+
++    return const Scaffold(
+
++      body: Center(child: CircularProgressIndicator()),
+
++    );
+
++  }
+
++}
+

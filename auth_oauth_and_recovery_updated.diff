@@ -1,0 +1,3168 @@
+diff --git a/lib/app/router.dart b/lib/app/router.dart
+index bfc6af2..f460971 100644
+--- a/lib/app/router.dart
++++ b/lib/app/router.dart
+@@ -1,74 +1,74 @@
+-import 'package:flutter/foundation.dart';
+-import 'package:go_router/go_router.dart';
+-
+-import '../core/auth_flow/auth_flow_provider.dart';
+-import '../core/auth_flow/auth_flow_state.dart';
+-import '../core/session/session_provider.dart';
+-import 'routes/auth_routes.dart';
+-import 'routes/picker_routes.dart';
+-import 'routes/shell_routes.dart';
+-
+-GoRouter createRouter({
+-  required SessionProvider session,
+-  required AuthFlowProvider authFlow,
+-}) {
+-  return GoRouter(
+-    initialLocation: '/',
+-    refreshListenable: Listenable.merge([session, authFlow]),
+-    redirect: (context, state) {
+-      // Let the app render while we bootstrap local cache + remote session.
+-      if (!session.isInitialized) return null;
+-
+-      final path = state.uri.path;
+-      final isLoggedIn = session.isAuthenticated;
+-
+-      final isLogin = path == '/login';
+-      final isSignup = path == '/signup';
+-
+-      final isOtp = path == '/otp-verification';
+-      final isVerifyEmail = path == '/verify-email';
+-      final isForgotPassword = path == '/forgot-password';
+-      final isUpdatePassword = path == '/update-password';
+-      final isPhoneLogin = path == '/phone-login';
+-
+-      // ---------------- Auth flow gates (OTP/email verification/password update) ----------------
+-      if (authFlow.needsPasswordUpdate && !isUpdatePassword) {
+-        return '/update-password';
+-      }
+-
+-      if (authFlow.needsEmailVerification && !isVerifyEmail) {
+-        final email = Uri.encodeComponent(authFlow.verificationEmail!);
+-        return '/verify-email?email=$email';
+-      }
+-
+-      if (authFlow.needsOtp && !isOtp) {
+-        final c = authFlow.otpChallenge!;
+-        final target = Uri.encodeComponent(c.target);
+-        final type = c.type == OtpTargetType.phone ? 'phone' : 'email';
+-        return '/otp-verification?type=$type&target=$target';
+-      }
+-
+-      // ---------------- Protected areas ----------------
+-      final requiresAuth = path.startsWith('/my-rides') ||
+-          path.startsWith('/profile') ||
+-          path.startsWith('/post-ride');
+-
+-      if (!isLoggedIn && requiresAuth) {
+-        final from = Uri.encodeComponent(state.uri.toString());
+-        return '/login?from=$from';
+-      }
+-
+-      // If logged in, keep user out of auth screens (except password update/verify-email if gated).
+-      if (isLoggedIn && (isLogin || isSignup || isPhoneLogin || isForgotPassword)) {
+-        return '/';
+-      }
+-
+-      return null;
+-    },
+-    routes: [
+-      ...authRoutes(),
+-      appShellRoute(),
+-      ...pickerRoutes(),
+-    ],
+-  );
+-}
++import 'package:flutter/foundation.dart';
++import 'package:go_router/go_router.dart';
++
++import '../core/auth_flow/auth_flow_provider.dart';
++import '../core/auth_flow/auth_flow_state.dart';
++import '../core/session/session_provider.dart';
++import 'routes/auth_routes.dart';
++import 'routes/picker_routes.dart';
++import 'routes/shell_routes.dart';
++
++GoRouter createRouter({
++  required SessionProvider session,
++  required AuthFlowProvider authFlow,
++}) {
++  return GoRouter(
++    initialLocation: '/',
++    refreshListenable: Listenable.merge([session, authFlow]),
++    redirect: (context, state) {
++      // Let the app render while we bootstrap local cache + remote session.
++      if (!session.isInitialized) return null;
++
++      final path = state.uri.path;
++      final isLoggedIn = session.isAuthenticated;
++
++      final isLogin = path == '/login';
++      final isSignup = path == '/signup';
++
++      final isOtp = path == '/otp-verification';
++      final isVerifyEmail = path == '/verify-email';
++      final isForgotPassword = path == '/forgot-password';
++      final isUpdatePassword = path == '/update-password';
++      final isPhoneLogin = path == '/phone-login';
++
++      // ---------------- Auth flow gates (OTP/email verification/password update) ----------------
++      if (authFlow.needsPasswordUpdate && !isUpdatePassword) {
++        return '/update-password';
++      }
++
++      if (authFlow.needsEmailVerification && !isVerifyEmail) {
++        final email = Uri.encodeComponent(authFlow.verificationEmail!);
++        return '/verify-email?email=$email';
++      }
++
++      if (authFlow.needsOtp && !isOtp) {
++        final c = authFlow.otpChallenge!;
++        final target = Uri.encodeComponent(c.target);
++        final type = c.type == OtpTargetType.phone ? 'phone' : 'email';
++        return '/otp-verification?type=$type&target=$target';
++      }
++
++      // ---------------- Protected areas ----------------
++      final requiresAuth = path.startsWith('/my-rides') ||
++          path.startsWith('/profile') ||
++          path.startsWith('/post-ride');
++
++      if (!isLoggedIn && requiresAuth) {
++        final from = Uri.encodeComponent(state.uri.toString());
++        return '/login?from=$from';
++      }
++
++      // If logged in, keep user out of auth screens (except password update/verify-email if gated).
++      if (isLoggedIn && (isLogin || isSignup || isPhoneLogin || isForgotPassword || isAuthCallback)) {
++        return '/';
++      }
++
++      return null;
++    },
++    routes: [
++      ...authRoutes(),
++      appShellRoute(),
++      ...pickerRoutes(),
++    ],
++  );
++}
+\ No newline at end of file
+diff --git a/lib/app/routes/auth_routes.dart b/lib/app/routes/auth_routes.dart
+index 9c00f9d..b511694 100644
+--- a/lib/app/routes/auth_routes.dart
++++ b/lib/app/routes/auth_routes.dart
+@@ -1,110 +1,122 @@
+-import 'package:flutter/material.dart';
+-import 'package:go_router/go_router.dart';
+-
+-import '../../core/auth_flow/auth_flow_state.dart';
+-import '../../features/auth/presentation/pages/forgot_password_page.dart';
+-import '../../features/auth/presentation/pages/login_page.dart';
+-import '../../features/auth/presentation/pages/otp_verification_page.dart';
+-import '../../features/auth/presentation/pages/phone_login_page.dart';
+-import '../../features/auth/presentation/pages/signup_page.dart';
+-import '../../features/auth/presentation/pages/update_password_page.dart';
+-import '../../features/auth/presentation/pages/verify_email_page.dart';
+-
+-List<RouteBase> authRoutes() => [
+-      GoRoute(
+-        path: '/login',
+-        name: 'login',
+-        builder: (context, state) {
+-          final from = state.uri.queryParameters['from'];
+-          return LoginPage(from: from);
+-        },
+-      ),
+-      GoRoute(
+-        path: '/signup',
+-        name: 'signup',
+-        builder: (context, state) => const SignupPage(),
+-      ),
+-      GoRoute(
+-        path: '/phone-login',
+-        name: 'phone-login',
+-        builder: (context, state) {
+-          final from = state.uri.queryParameters['from'];
+-          return PhoneLoginPage(from: from);
+-        },
+-      ),
+-      GoRoute(
+-        path: '/otp-verification',
+-        name: 'otp-verification',
+-        builder: (context, state) {
+-          final typeStr = state.uri.queryParameters['type'];
+-          final target = state.uri.queryParameters['target'];
+-          final from = state.uri.queryParameters['from'];
+-
+-          if (typeStr == null || target == null) {
+-            return const _MissingOtpArgs();
+-          }
+-
+-          final type =
+-              typeStr == 'phone' ? OtpTargetType.phone : OtpTargetType.email;
+-
+-          return OtpVerificationPage(type: type, target: target, from: from);
+-        },
+-      ),
+-      GoRoute(
+-        path: '/verify-email',
+-        name: 'verify-email',
+-        builder: (context, state) {
+-          final email = state.uri.queryParameters['email'];
+-          if (email == null || email.isEmpty) return const _MissingEmailArgs();
+-          return VerifyEmailPage(email: email);
+-        },
+-      ),
+-      GoRoute(
+-        path: '/forgot-password',
+-        name: 'forgot-password',
+-        builder: (context, state) => const ForgotPasswordPage(),
+-      ),
+-      GoRoute(
+-        path: '/update-password',
+-        name: 'update-password',
+-        builder: (context, state) => const UpdatePasswordPage(),
+-      ),
+-    ];
+-
+-class _MissingEmailArgs extends StatelessWidget {
+-  const _MissingEmailArgs();
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return const Scaffold(
+-      body: SafeArea(
+-        child: Center(
+-          child: Text(
+-            'Verify Email requires an email.'
+-            "Fix: navigate to '/verify-email?email=you@example.com'",
+-            textAlign: TextAlign.center,
+-          ),
+-        ),
+-      ),
+-    );
+-  }
+-}
+-
+-class _MissingOtpArgs extends StatelessWidget {
+-  const _MissingOtpArgs();
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return const Scaffold(
+-      body: SafeArea(
+-        child: Center(
+-          child: Text(
+-            'OTP Verification requires query params.'
+-            "Fix: navigate to '/otp-verification?type=email&target=you@example.com'",
+-            textAlign: TextAlign.center,
+-          ),
+-        ),
+-      ),
+-    );
+-  }
+-}
++import 'package:flutter/material.dart';
++import 'package:go_router/go_router.dart';
++
++import '../../core/auth_flow/auth_flow_state.dart';
++import '../../features/auth/presentation/pages/forgot_password_page.dart';
++import '../../features/auth/presentation/pages/auth_callback_page.dart';
++import '../../features/auth/presentation/pages/auth_recovery_callback_page.dart';
++import '../../features/auth/presentation/pages/login_page.dart';
++import '../../features/auth/presentation/pages/otp_verification_page.dart';
++import '../../features/auth/presentation/pages/phone_login_page.dart';
++import '../../features/auth/presentation/pages/signup_page.dart';
++import '../../features/auth/presentation/pages/update_password_page.dart';
++import '../../features/auth/presentation/pages/verify_email_page.dart';
++
++List<RouteBase> authRoutes() => [
++      GoRoute(
++        path: '/auth/callback',
++        name: 'auth-callback',
++        builder: (context, state) => const AuthCallbackPage(),
++      ),
++      GoRoute(
++        path: '/auth/recovery',
++        name: 'auth-recovery',
++        builder: (context, state) => const AuthRecoveryCallbackPage(),
++      ),
++      GoRoute(
++        path: '/login',
++        name: 'login',
++        builder: (context, state) {
++          final from = state.uri.queryParameters['from'];
++          return LoginPage(from: from);
++        },
++      ),
++      GoRoute(
++        path: '/signup',
++        name: 'signup',
++        builder: (context, state) => const SignupPage(),
++      ),
++      GoRoute(
++        path: '/phone-login',
++        name: 'phone-login',
++        builder: (context, state) {
++          final from = state.uri.queryParameters['from'];
++          return PhoneLoginPage(from: from);
++        },
++      ),
++      GoRoute(
++        path: '/otp-verification',
++        name: 'otp-verification',
++        builder: (context, state) {
++          final typeStr = state.uri.queryParameters['type'];
++          final target = state.uri.queryParameters['target'];
++          final from = state.uri.queryParameters['from'];
++
++          if (typeStr == null || target == null) {
++            return const _MissingOtpArgs();
++          }
++
++          final type =
++              typeStr == 'phone' ? OtpTargetType.phone : OtpTargetType.email;
++
++          return OtpVerificationPage(type: type, target: target, from: from);
++        },
++      ),
++      GoRoute(
++        path: '/verify-email',
++        name: 'verify-email',
++        builder: (context, state) {
++          final email = state.uri.queryParameters['email'];
++          if (email == null || email.isEmpty) return const _MissingEmailArgs();
++          return VerifyEmailPage(email: email);
++        },
++      ),
++      GoRoute(
++        path: '/forgot-password',
++        name: 'forgot-password',
++        builder: (context, state) => const ForgotPasswordPage(),
++      ),
++      GoRoute(
++        path: '/update-password',
++        name: 'update-password',
++        builder: (context, state) => const UpdatePasswordPage(),
++      ),
++    ];
++
++class _MissingEmailArgs extends StatelessWidget {
++  const _MissingEmailArgs();
++
++  @override
++  Widget build(BuildContext context) {
++    return const Scaffold(
++      body: SafeArea(
++        child: Center(
++          child: Text(
++            'Verify Email requires an email.'
++            "Fix: navigate to '/verify-email?email=you@example.com'",
++            textAlign: TextAlign.center,
++          ),
++        ),
++      ),
++    );
++  }
++}
++
++class _MissingOtpArgs extends StatelessWidget {
++  const _MissingOtpArgs();
++
++  @override
++  Widget build(BuildContext context) {
++    return const Scaffold(
++      body: SafeArea(
++        child: Center(
++          child: Text(
++            'OTP Verification requires query params.'
++            "Fix: navigate to '/otp-verification?type=email&target=you@example.com'",
++            textAlign: TextAlign.center,
++          ),
++        ),
++      ),
++    );
++  }
++}
+\ No newline at end of file
+diff --git a/lib/core/env/env.dart b/lib/core/env/env.dart
+index a58a5f6..9cb3f35 100644
+--- a/lib/core/env/env.dart
++++ b/lib/core/env/env.dart
+@@ -1,19 +1,29 @@
+-class Env {
+-  // These are compile-time values injected via --dart-define or --dart-define-from-file.
+-  static const String supabaseUrl =
+-  String.fromEnvironment('SUPABASE_URL', defaultValue: '');
+-
+-  static const String supabaseAnonKey =
+-  String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
+-
+-  static void validate() {
+-    assert(
+-    supabaseUrl.isNotEmpty,
+-    'Missing SUPABASE_URL. Provide it using --dart-define or --dart-define-from-file.',
+-    );
+-    assert(
+-    supabaseAnonKey.isNotEmpty,
+-    'Missing SUPABASE_ANON_KEY. Provide it using --dart-define or --dart-define-from-file.',
+-    );
+-  }
+-}
++class Env {
++  // These are compile-time values injected via --dart-define or --dart-define-from-file.
++  static const String supabaseUrl =
++      String.fromEnvironment('SUPABASE_URL', defaultValue: '');
++
++  static const String supabaseAnonKey =
++      String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
++
++  /// Redirect URL used for OAuth providers (Google / Apple / etc).
++  /// Example: yourapp://auth/callback
++  static const String authOAuthRedirectUrl =
++      String.fromEnvironment('AUTH_OAUTH_REDIRECT_URL', defaultValue: '');
++
++  /// Redirect URL used for password recovery.
++  /// Example: yourapp://auth/recovery
++  static const String authPasswordRecoveryRedirectUrl =
++      String.fromEnvironment('AUTH_PASSWORD_RECOVERY_REDIRECT_URL', defaultValue: '');
++
++  static void validate() {
++    assert(
++      supabaseUrl.isNotEmpty,
++      'Missing SUPABASE_URL. Provide it using --dart-define or --dart-define-from-file.',
++    );
++    assert(
++      supabaseAnonKey.isNotEmpty,
++      'Missing SUPABASE_ANON_KEY. Provide it using --dart-define or --dart-define-from-file.',
++    );
++  }
++}
+diff --git a/lib/di/app_di.dart b/lib/di/app_di.dart
+index ee83114..07ce9de 100644
+--- a/lib/di/app_di.dart
++++ b/lib/di/app_di.dart
+@@ -1,205 +1,205 @@
+-import 'package:provider/provider.dart';
+-import 'package:provider/single_child_widget.dart';
+-import 'package:supabase_flutter/supabase_flutter.dart';
+-
+-import '../core/platform/chat_launcher.dart';
+-import '../services/url_launcher_chat_launcher.dart';
+-import '../core/session/session_provider.dart';
+-import '../core/session/session_repository.dart';
+-import '../core/auth_flow/auth_flow_provider.dart';
+-import '../core/platform/biometric_auth.dart';
+-import '../services/noop_biometric_auth.dart';
+-
+-// ------------------- MY RIDES -------------------
+-import '../features/my_rides/data/datasources/my_rides_remote_data_source.dart';
+-import '../features/my_rides/data/repositories/my_rides_repository_impl.dart';
+-import '../features/my_rides/application/usecases/get_archived_rides_usecase.dart';
+-import '../features/my_rides/application/usecases/get_my_ride_details_usecase.dart';
+-import '../features/my_rides/application/usecases/get_my_rides_usecase.dart';
+-import '../features/my_rides/presentation/providers/my_rides_provider.dart';
+-
+-// ------------------- RIDE SEARCH -------------------
+-import '../features/ride_search/data/datasources/ride_remote_data_source.dart';
+-import '../features/ride_search/data/repositories/ride_repository_impl.dart';
+-import '../features/ride_search/application/usecases/book_ride_usecase.dart';
+-import '../features/ride_search/application/usecases/search_rides_usecase.dart';
+-import '../features/ride_search/presentation/provider/booking_provider.dart';
+-import '../features/ride_search/presentation/provider/ride_search_provider.dart';
+-
+-// ------------------- AUTH -------------------
+-import '../core/platform/secure_kv_store.dart';
+-import '../services/flutter_secure_kv_store.dart';
+-import '../features/auth/data/datasources/auth_local_data_source.dart';
+-import '../features/auth/data/datasources/auth_remote_data_source.dart';
+-import '../features/auth/data/datasources/supabase_auth_remote_data_source.dart';
+-import '../features/auth/data/datasources/auth_mock_data_source.dart';
+-import '../features/auth/data/repositories/auth_repository_impl.dart';
+-import '../features/auth/application/adapters/auth_session_repository.dart';
+-import '../features/auth/data/strategies/auth_strategy_registry.dart';
+-import '../features/auth/data/strategies/auth_strategy.dart';
+-import '../features/auth/data/strategies/email_password_signin_strategy.dart';
+-import '../features/auth/data/strategies/email_password_signup_strategy.dart';
+-import '../features/auth/data/strategies/otp_verify_strategy.dart';
+-import '../features/auth/data/strategies/oauth_signin_strategy.dart';
+-import '../features/auth/presentation/providers/auth_provider.dart';
+-
+-// ------------------- VEHICLE -------------------
+-import '../features/vehicle/data/repositories/vehicle_repository_memory.dart';
+-import '../features/vehicle/presentation/providers/vehicle_provider.dart';
+-
+-// ------------------- POST RIDE -------------------
+-import '../features/post_ride/data/repositories/ride_draft_repository_memory.dart';
+-import '../features/post_ride/data/repositories/route_repository_mock.dart';
+-import '../features/post_ride/data/repositories/ride_publish_repository_mock.dart';
+-
+-import '../features/post_ride/application/usecases/create_new_draft_usecase.dart';
+-import '../features/post_ride/application/usecases/save_draft_usecase.dart';
+-import '../features/post_ride/application/usecases/get_route_options_usecase.dart';
+-import '../features/post_ride/application/usecases/publish_ride_usecase.dart';
+-import '../features/post_ride/application/usecases/publish_return_ride_usecase.dart';
+-import '../features/post_ride/application/usecases/ensure_publish_eligibility_usecase.dart';
+-
+-import '../features/post_ride/presentation/providers/post_ride_draft_provider.dart';
+-import '../features/post_ride/presentation/providers/post_ride_publish_provider.dart';
+-
+-/// Minimal DI module for Provider-based apps.
+-/// Keeps `main.dart` small and prevents it from growing into a wiring monolith.
+-class AppDI {
+-  static List<SingleChildWidget> providers() {
+-    // ---------------------------------------------------------------------------
+-    // DATA LAYER (Repos + Datasources)
+-    // ---------------------------------------------------------------------------
+-
+-        // Auth wiring (DIP-friendly)
+-    final SecureKvStore secureKvStore = FlutterSecureKvStore();
+-    final authLocalDataSource = AuthLocalDataSource(secureKvStore);
+-    final AuthRemoteDataSource authRemoteDataSource = () {
+-      try {
+-        return SupabaseAuthRemoteDataSource(Supabase.instance.client);
+-      } catch (_) {
+-        // Supabase not initialised (e.g., tests) – fall back to mock.
+-        return MockAuthRemoteDataSource();
+-      }
+-    }();
+-    final authStrategies = <AuthStrategy>[
+-      EmailPasswordSignInStrategy(authRemoteDataSource),
+-      EmailPasswordSignUpStrategy(authRemoteDataSource),
+-      OtpVerifyStrategy(authRemoteDataSource),
+-      OAuthSignInStrategy(),
+-    ];
+-    final authRegistry = AuthStrategyRegistry(authStrategies);
+-    final authRepo = AuthRepositoryImpl(
+-      remote: authRemoteDataSource,
+-      local: authLocalDataSource,
+-      registry: authRegistry,
+-    );
+-
+-    final SessionRepository sessionRepository = AuthSessionRepository(authRepo);
+-
+-final rideRemote = RideRemoteDataSource();
+-    final rideRepo = RideRepositoryImpl(rideRemote);
+-
+-    final vehicleRepo = VehicleRepositoryMemory();
+-
+-    final draftRepo = RideDraftRepositoryMemory();
+-    final routeRepo = RouteRepositoryMock();
+-    final publishRepo = RidePublishRepositoryMock();
+-final myRidesRemote = MyRidesRemoteDataSource();
+-final myRidesRepo = MyRidesRepositoryImpl(myRidesRemote);
+-
+-final getMyRidesUseCase = GetMyRidesUseCase(myRidesRepo);
+-final getArchivedRidesUseCase = GetArchivedRidesUseCase(myRidesRepo);
+-final getMyRideDetailsUseCase = GetMyRideDetailsUseCase(myRidesRepo);
+-
+-    // ---------------------------------------------------------------------------
+-    // USE CASES
+-    // ---------------------------------------------------------------------------
+-
+-    final searchRidesUseCase = SearchRidesUseCase(rideRepo);
+-    final bookRideUseCase = BookRideUseCase(rideRepo);
+-
+-    final createDraftUseCase = CreateNewDraftUseCase(draftRepo);
+-    final saveDraftUseCase = SaveDraftUseCase(draftRepo);
+-    final getRoutesUseCase = GetRouteOptionsUseCase(routeRepo);
+-    final publishRideUseCase = PublishRideUseCase(publishRepo);
+-    final publishReturnRideUseCase = PublishReturnRideUseCase(publishRepo);
+-    final ensurePublishEligibilityUseCase = EnsurePublishEligibilityUseCase(authRepo, vehicleRepo);
+-
+-    // Platform services
+-    final ChatLauncher chatLauncher = UrlLauncherChatLauncher();
+-
+-    // ---------------------------------------------------------------------------
+-    // PROVIDERS
+-    // ---------------------------------------------------------------------------
+-    return [
+-      // Auth
+-      Provider<AuthRepositoryImpl>(
+-        create: (_) => authRepo,
+-        dispose: (_, repo) => repo.dispose(),
+-      ),
+-      Provider<SessionRepository>(
+-        create: (_) => sessionRepository,
+-      ),
+-      ChangeNotifierProvider<SessionProvider>(
+-        create: (ctx) => SessionProvider(ctx.read<SessionRepository>()),
+-      ),
+-      Provider<BiometricAuth>(
+-        create: (_) => NoopBiometricAuth(),
+-      ),
+-      ChangeNotifierProvider<AuthFlowProvider>(
+-        create: (_) => AuthFlowProvider(),
+-      ),
+-      ChangeNotifierProvider<AuthProvider>(
+-        create: (ctx) => AuthProvider(
+-          ctx.read<AuthRepositoryImpl>(),
+-          authFlow: ctx.read<AuthFlowProvider>(),
+-          biometricAuth: ctx.read<BiometricAuth>(),
+-        ),
+-      ),
+-
+-      // Ride Search
+-      ChangeNotifierProvider<RideSearchProvider>(
+-        create: (_) => RideSearchProvider(searchRidesUseCase),
+-      ),
+-      ChangeNotifierProvider<BookingProvider>(
+-        create: (_) => BookingProvider(bookRideUseCase),
+-      ),
+-
+-      ChangeNotifierProvider<MyRidesProvider>(
+-        create: (_) => MyRidesProvider(
+-          getMyRidesUseCase,
+-          getArchivedRidesUseCase,
+-          getMyRideDetailsUseCase,
+-        ),
+-      ),
+-
+-      // Vehicle
+-      ChangeNotifierProvider<VehicleProvider>(
+-        create: (_) => VehicleProvider(vehicleRepo)..refresh(),
+-      ),
+-
+-      // Post Ride
+-      Provider<EnsurePublishEligibilityUseCase>(
+-        create: (_) => ensurePublishEligibilityUseCase,
+-      ),
+-      ChangeNotifierProvider<PostRideDraftProvider>(
+-        create: (_) => PostRideDraftProvider(
+-          createDraftUseCase,
+-          saveDraftUseCase,
+-          getRoutesUseCase,
+-        ),
+-      ),
+-      ChangeNotifierProvider<PostRidePublishProvider>(
+-        create: (_) => PostRidePublishProvider(
+-          publishRideUseCase,
+-          publishReturnRideUseCase,
+-        ),
+-      ),
+-
+-      // Platform boundary services
+-      Provider<ChatLauncher>(
+-        create: (_) => chatLauncher,
+-      ),
+-    ];
+-  }
+-}
++import 'package:provider/provider.dart';
++import 'package:provider/single_child_widget.dart';
++import 'package:supabase_flutter/supabase_flutter.dart';
++
++import '../core/platform/chat_launcher.dart';
++import '../services/url_launcher_chat_launcher.dart';
++import '../core/session/session_provider.dart';
++import '../core/session/session_repository.dart';
++import '../core/auth_flow/auth_flow_provider.dart';
++import '../core/platform/biometric_auth.dart';
++import '../services/noop_biometric_auth.dart';
++
++// ------------------- MY RIDES -------------------
++import '../features/my_rides/data/datasources/my_rides_remote_data_source.dart';
++import '../features/my_rides/data/repositories/my_rides_repository_impl.dart';
++import '../features/my_rides/application/usecases/get_archived_rides_usecase.dart';
++import '../features/my_rides/application/usecases/get_my_ride_details_usecase.dart';
++import '../features/my_rides/application/usecases/get_my_rides_usecase.dart';
++import '../features/my_rides/presentation/providers/my_rides_provider.dart';
++
++// ------------------- RIDE SEARCH -------------------
++import '../features/ride_search/data/datasources/ride_remote_data_source.dart';
++import '../features/ride_search/data/repositories/ride_repository_impl.dart';
++import '../features/ride_search/application/usecases/book_ride_usecase.dart';
++import '../features/ride_search/application/usecases/search_rides_usecase.dart';
++import '../features/ride_search/presentation/provider/booking_provider.dart';
++import '../features/ride_search/presentation/provider/ride_search_provider.dart';
++
++// ------------------- AUTH -------------------
++import '../core/platform/secure_kv_store.dart';
++import '../services/flutter_secure_kv_store.dart';
++import '../features/auth/data/datasources/auth_local_data_source.dart';
++import '../features/auth/data/datasources/auth_remote_data_source.dart';
++import '../features/auth/data/datasources/supabase_auth_remote_data_source.dart';
++import '../features/auth/data/datasources/auth_mock_data_source.dart';
++import '../features/auth/data/repositories/auth_repository_impl.dart';
++import '../features/auth/application/adapters/auth_session_repository.dart';
++import '../features/auth/data/strategies/auth_strategy_registry.dart';
++import '../features/auth/data/strategies/auth_strategy.dart';
++import '../features/auth/data/strategies/email_password_signin_strategy.dart';
++import '../features/auth/data/strategies/email_password_signup_strategy.dart';
++import '../features/auth/data/strategies/otp_verify_strategy.dart';
++import '../features/auth/data/strategies/oauth_signin_strategy.dart';
++import '../features/auth/presentation/providers/auth_provider.dart';
++
++// ------------------- VEHICLE -------------------
++import '../features/vehicle/data/repositories/vehicle_repository_memory.dart';
++import '../features/vehicle/presentation/providers/vehicle_provider.dart';
++
++// ------------------- POST RIDE -------------------
++import '../features/post_ride/data/repositories/ride_draft_repository_memory.dart';
++import '../features/post_ride/data/repositories/route_repository_mock.dart';
++import '../features/post_ride/data/repositories/ride_publish_repository_mock.dart';
++
++import '../features/post_ride/application/usecases/create_new_draft_usecase.dart';
++import '../features/post_ride/application/usecases/save_draft_usecase.dart';
++import '../features/post_ride/application/usecases/get_route_options_usecase.dart';
++import '../features/post_ride/application/usecases/publish_ride_usecase.dart';
++import '../features/post_ride/application/usecases/publish_return_ride_usecase.dart';
++import '../features/post_ride/application/usecases/ensure_publish_eligibility_usecase.dart';
++
++import '../features/post_ride/presentation/providers/post_ride_draft_provider.dart';
++import '../features/post_ride/presentation/providers/post_ride_publish_provider.dart';
++
++/// Minimal DI module for Provider-based apps.
++/// Keeps `main.dart` small and prevents it from growing into a wiring monolith.
++class AppDI {
++  static List<SingleChildWidget> providers() {
++    // ---------------------------------------------------------------------------
++    // DATA LAYER (Repos + Datasources)
++    // ---------------------------------------------------------------------------
++
++        // Auth wiring (DIP-friendly)
++    final SecureKvStore secureKvStore = FlutterSecureKvStore();
++    final authLocalDataSource = AuthLocalDataSource(secureKvStore);
++    final AuthRemoteDataSource authRemoteDataSource = () {
++      try {
++        return SupabaseAuthRemoteDataSource(Supabase.instance.client);
++      } catch (_) {
++        // Supabase not initialised (e.g., tests) – fall back to mock.
++        return MockAuthRemoteDataSource();
++      }
++    }();
++    final authStrategies = <AuthStrategy>[
++      EmailPasswordSignInStrategy(authRemoteDataSource),
++      EmailPasswordSignUpStrategy(authRemoteDataSource),
++      OtpVerifyStrategy(authRemoteDataSource),
++      OAuthSignInStrategy(authRemoteDataSource),
++    ];
++    final authRegistry = AuthStrategyRegistry(authStrategies);
++    final authRepo = AuthRepositoryImpl(
++      remote: authRemoteDataSource,
++      local: authLocalDataSource,
++      registry: authRegistry,
++    );
++
++    final SessionRepository sessionRepository = AuthSessionRepository(authRepo);
++
++final rideRemote = RideRemoteDataSource();
++    final rideRepo = RideRepositoryImpl(rideRemote);
++
++    final vehicleRepo = VehicleRepositoryMemory();
++
++    final draftRepo = RideDraftRepositoryMemory();
++    final routeRepo = RouteRepositoryMock();
++    final publishRepo = RidePublishRepositoryMock();
++final myRidesRemote = MyRidesRemoteDataSource();
++final myRidesRepo = MyRidesRepositoryImpl(myRidesRemote);
++
++final getMyRidesUseCase = GetMyRidesUseCase(myRidesRepo);
++final getArchivedRidesUseCase = GetArchivedRidesUseCase(myRidesRepo);
++final getMyRideDetailsUseCase = GetMyRideDetailsUseCase(myRidesRepo);
++
++    // ---------------------------------------------------------------------------
++    // USE CASES
++    // ---------------------------------------------------------------------------
++
++    final searchRidesUseCase = SearchRidesUseCase(rideRepo);
++    final bookRideUseCase = BookRideUseCase(rideRepo);
++
++    final createDraftUseCase = CreateNewDraftUseCase(draftRepo);
++    final saveDraftUseCase = SaveDraftUseCase(draftRepo);
++    final getRoutesUseCase = GetRouteOptionsUseCase(routeRepo);
++    final publishRideUseCase = PublishRideUseCase(publishRepo);
++    final publishReturnRideUseCase = PublishReturnRideUseCase(publishRepo);
++    final ensurePublishEligibilityUseCase = EnsurePublishEligibilityUseCase(authRepo, vehicleRepo);
++
++    // Platform services
++    final ChatLauncher chatLauncher = UrlLauncherChatLauncher();
++
++    // ---------------------------------------------------------------------------
++    // PROVIDERS
++    // ---------------------------------------------------------------------------
++    return [
++      // Auth
++      Provider<AuthRepositoryImpl>(
++        create: (_) => authRepo,
++        dispose: (_, repo) => repo.dispose(),
++      ),
++      Provider<SessionRepository>(
++        create: (_) => sessionRepository,
++      ),
++      ChangeNotifierProvider<SessionProvider>(
++        create: (ctx) => SessionProvider(ctx.read<SessionRepository>()),
++      ),
++      Provider<BiometricAuth>(
++        create: (_) => NoopBiometricAuth(),
++      ),
++      ChangeNotifierProvider<AuthFlowProvider>(
++        create: (_) => AuthFlowProvider(),
++      ),
++      ChangeNotifierProvider<AuthProvider>(
++        create: (ctx) => AuthProvider(
++          ctx.read<AuthRepositoryImpl>(),
++          authFlow: ctx.read<AuthFlowProvider>(),
++          biometricAuth: ctx.read<BiometricAuth>(),
++        ),
++      ),
++
++      // Ride Search
++      ChangeNotifierProvider<RideSearchProvider>(
++        create: (_) => RideSearchProvider(searchRidesUseCase),
++      ),
++      ChangeNotifierProvider<BookingProvider>(
++        create: (_) => BookingProvider(bookRideUseCase),
++      ),
++
++      ChangeNotifierProvider<MyRidesProvider>(
++        create: (_) => MyRidesProvider(
++          getMyRidesUseCase,
++          getArchivedRidesUseCase,
++          getMyRideDetailsUseCase,
++        ),
++      ),
++
++      // Vehicle
++      ChangeNotifierProvider<VehicleProvider>(
++        create: (_) => VehicleProvider(vehicleRepo)..refresh(),
++      ),
++
++      // Post Ride
++      Provider<EnsurePublishEligibilityUseCase>(
++        create: (_) => ensurePublishEligibilityUseCase,
++      ),
++      ChangeNotifierProvider<PostRideDraftProvider>(
++        create: (_) => PostRideDraftProvider(
++          createDraftUseCase,
++          saveDraftUseCase,
++          getRoutesUseCase,
++        ),
++      ),
++      ChangeNotifierProvider<PostRidePublishProvider>(
++        create: (_) => PostRidePublishProvider(
++          publishRideUseCase,
++          publishReturnRideUseCase,
++        ),
++      ),
++
++      // Platform boundary services
++      Provider<ChatLauncher>(
++        create: (_) => chatLauncher,
++      ),
++    ];
++  }
++}
+diff --git a/lib/features/auth/data/datasources/auth_mock_data_source.dart b/lib/features/auth/data/datasources/auth_mock_data_source.dart
+index 707860e..eacd071 100644
+--- a/lib/features/auth/data/datasources/auth_mock_data_source.dart
++++ b/lib/features/auth/data/datasources/auth_mock_data_source.dart
+@@ -1,77 +1,90 @@
+-import '../../domain/entities/auth_credential.dart';
+-import '../models/auth_user_model.dart';
+-import 'auth_remote_data_source.dart';
+-
+-/// Mock remote implementation used for MVP wiring.
+-/// Replace with real implementation later without touching domain/presentation.
+-class MockAuthRemoteDataSource implements AuthRemoteDataSource {
+-  @override
+-  Stream<AuthUserModel?> get authStateChanges =>
+-      const Stream<AuthUserModel?>.empty();
+-
+-  @override
+-  Future<AuthUserModel?> getCurrentUser() async => null;
+-
+-  @override
+-  Future<AuthUserModel> login(String email, String password) async {
+-    await Future.delayed(const Duration(milliseconds: 300));
+-    return AuthUserModel(id: 'u123', email: email, name: 'Mock User');
+-  }
+-
+-  @override
+-  Future<void> signup({
+-    required String name,
+-    required String email,
+-    required String password,
+-  }) async {
+-    await Future.delayed(const Duration(milliseconds: 300));
+-  }
+-
+-  @override
+-  Future<AuthUserModel> verifyOtp(String email, String otp) async {
+-    await Future.delayed(const Duration(milliseconds: 300));
+-    return AuthUserModel(id: 'u456', email: email, name: 'New User');
+-  }
+-
+-  @override
+-  Future<void> requestPhoneOtp({
+-    required String phoneE164,
+-    required AuthOtpChannel preferredChannel,
+-  }) async {
+-    await Future.delayed(const Duration(milliseconds: 250));
+-  }
+-
+-  @override
+-  Future<AuthUserModel> verifyPhoneOtp({
+-    required String phoneE164,
+-    required String code,
+-  }) async {
+-    await Future.delayed(const Duration(milliseconds: 300));
+-    return AuthUserModel(
+-      id: 'u789',
+-      email: '',
+-      name: 'Phone User',
+-      phoneNumber: phoneE164,
+-    );
+-  }
+-
+-  @override
+-  Future<void> requestPasswordReset(String email) async {
+-    await Future.delayed(const Duration(milliseconds: 250));
+-  }
+-
+-  @override
+-  Future<void> changePassword(String newPassword) async {
+-    await Future.delayed(const Duration(milliseconds: 250));
+-  }
+-
+-  @override
+-  Future<void> resendEmailVerification(String email) async {
+-    await Future.delayed(const Duration(milliseconds: 250));
+-  }
+-
+-  @override
+-  Future<void> logout() async {
+-    await Future.delayed(const Duration(milliseconds: 100));
+-  }
+-}
++import '../../domain/entities/auth_credential.dart';
++import '../../domain/entities/auth_event.dart';
++import '../models/auth_user_model.dart';
++import 'auth_remote_data_source.dart';
++
++/// Mock remote implementation used for MVP wiring.
++/// Replace with real implementation later without touching domain/presentation.
++class MockAuthRemoteDataSource implements AuthRemoteDataSource {
++  @override
++  Stream<AuthUserModel?> get authStateChanges =>
++      const Stream<AuthUserModel?>.empty();
++
++  @override
++  Stream<AuthEventType> get authEvents => const Stream<AuthEventType>.empty();
++
++  @override
++  Future<AuthUserModel?> getCurrentUser() async => null;
++
++  @override
++  Future<AuthUserModel> login(String email, String password) async {
++    await Future.delayed(const Duration(milliseconds: 300));
++    return AuthUserModel(id: 'u123', email: email, name: 'Mock User');
++  }
++
++  @override
++  Future<void> signup({
++    required String name,
++    required String email,
++    required String password,
++  }) async {
++    await Future.delayed(const Duration(milliseconds: 300));
++  }
++
++  @override
++  Future<void> startOAuthSignIn({
++    required OAuthProvider provider,
++    String? redirectTo,
++  }) async {
++    // No-op in mock.
++    await Future.delayed(const Duration(milliseconds: 100));
++  }
++
++  @override
++  Future<AuthUserModel> verifyOtp(String email, String otp) async {
++    await Future.delayed(const Duration(milliseconds: 300));
++    return AuthUserModel(id: 'u456', email: email, name: 'New User');
++  }
++
++  @override
++  Future<void> requestPhoneOtp({
++    required String phoneE164,
++    required AuthOtpChannel preferredChannel,
++  }) async {
++    await Future.delayed(const Duration(milliseconds: 250));
++  }
++
++  @override
++  Future<AuthUserModel> verifyPhoneOtp({
++    required String phoneE164,
++    required String code,
++  }) async {
++    await Future.delayed(const Duration(milliseconds: 300));
++    return AuthUserModel(
++      id: 'u789',
++      email: '',
++      name: 'Phone User',
++      phoneNumber: phoneE164,
++    );
++  }
++
++  @override
++  Future<void> requestPasswordReset(String email) async {
++    await Future.delayed(const Duration(milliseconds: 250));
++  }
++
++  @override
++  Future<void> changePassword(String newPassword) async {
++    await Future.delayed(const Duration(milliseconds: 250));
++  }
++
++  @override
++  Future<void> resendEmailVerification(String email) async {
++    await Future.delayed(const Duration(milliseconds: 250));
++  }
++
++  @override
++  Future<void> logout() async {
++    await Future.delayed(const Duration(milliseconds: 100));
++  }
++}
+diff --git a/lib/features/auth/data/datasources/auth_remote_data_source.dart b/lib/features/auth/data/datasources/auth_remote_data_source.dart
+index 7fb1845..f896d0f 100644
+--- a/lib/features/auth/data/datasources/auth_remote_data_source.dart
++++ b/lib/features/auth/data/datasources/auth_remote_data_source.dart
+@@ -1,57 +1,68 @@
+-import '../../domain/entities/auth_credential.dart';
+-import '../models/auth_user_model.dart';
+-
+-abstract class AuthRemoteDataSource {
+-  /// Emits auth user changes as observed by the remote auth provider.
+-  ///
+-  /// - Emits a user when a session becomes available
+-  /// - Emits null when the session ends / user signs out
+-  Stream<AuthUserModel?> get authStateChanges;
+-
+-  /// Returns current remote user if a valid session exists.
+-  Future<AuthUserModel?> getCurrentUser();
+-
+-  Future<AuthUserModel> login(String email, String password);
+-
+-  /// Starts signup flow.
+-  ///
+-  /// Depending on provider configuration, this might:
+-  /// - create a session immediately, or
+-  /// - send a verification email / OTP and require [verifyOtp].
+-  Future<void> signup({
+-    required String name,
+-    required String email,
+-    required String password,
+-  });
+-
+-  /// Completes OTP / verification step (when enabled) for email.
+-  Future<AuthUserModel> verifyOtp(String email, String otp);
+-
+-  /// Requests a phone OTP via the preferred channel.
+-  ///
+-  /// For Pakistani market, preferred is WhatsApp with SMS fallback.
+-  /// Not all providers support WhatsApp; in that case, implementations may throw
+-  /// [UnsupportedError] so callers can fall back to SMS.
+-  Future<void> requestPhoneOtp({
+-    required String phoneE164,
+-    required AuthOtpChannel preferredChannel,
+-  });
+-
+-  /// Verifies phone OTP and returns an authenticated user model.
+-  Future<AuthUserModel> verifyPhoneOtp({
+-    required String phoneE164,
+-    required String code,
+-  });
+-
+-  /// Requests a password reset email (magic link).
+-  Future<void> requestPasswordReset(String email);
+-
+-  /// Updates the password for the current authenticated user.
+-  Future<void> changePassword(String newPassword);
+-
+-  /// Resends a signup verification email.
+-  Future<void> resendEmailVerification(String email);
+-
+-  /// Signs out from the remote provider.
+-  Future<void> logout();
+-}
++import '../../domain/entities/auth_credential.dart';
++import '../../domain/entities/auth_event.dart';
++import '../models/auth_user_model.dart';
++
++abstract class AuthRemoteDataSource {
++  /// Emits auth user changes as observed by the remote auth provider.
++  ///
++  /// - Emits a user when a session becomes available
++  /// - Emits null when the session ends / user signs out
++  Stream<AuthUserModel?> get authStateChanges;
++
++  /// Emits auth events (provider-specific) mapped to domain-safe types.
++  Stream<AuthEventType> get authEvents;
++
++  /// Returns current remote user if a valid session exists.
++  Future<AuthUserModel?> getCurrentUser();
++
++  Future<AuthUserModel> login(String email, String password);
++
++  /// Starts signup flow.
++  ///
++  /// Depending on provider configuration, this might:
++  /// - create a session immediately, or
++  /// - send a verification email / OTP and require [verifyOtp].
++  Future<void> signup({
++    required String name,
++    required String email,
++    required String password,
++  });
++
++  /// Completes OTP / verification step (when enabled) for email.
++  Future<AuthUserModel> verifyOtp(String email, String otp);
++
++  /// Starts OAuth sign-in for supported providers (Google/Apple/etc).
++  Future<void> startOAuthSignIn({
++    required OAuthProvider provider,
++    String? redirectTo,
++  });
++
++
++  /// Requests a phone OTP via the preferred channel.
++  ///
++  /// For Pakistani market, preferred is WhatsApp with SMS fallback.
++  /// Not all providers support WhatsApp; in that case, implementations may throw
++  /// [UnsupportedError] so callers can fall back to SMS.
++  Future<void> requestPhoneOtp({
++    required String phoneE164,
++    required AuthOtpChannel preferredChannel,
++  });
++
++  /// Verifies phone OTP and returns an authenticated user model.
++  Future<AuthUserModel> verifyPhoneOtp({
++    required String phoneE164,
++    required String code,
++  });
++
++  /// Requests a password reset email (magic link).
++  Future<void> requestPasswordReset(String email);
++
++  /// Updates the password for the current authenticated user.
++  Future<void> changePassword(String newPassword);
++
++  /// Resends a signup verification email.
++  Future<void> resendEmailVerification(String email);
++
++  /// Signs out from the remote provider.
++  Future<void> logout();
++}
+\ No newline at end of file
+diff --git a/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart b/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart
+index 6c9fce8..97801f1 100644
+--- a/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart
++++ b/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart
+@@ -1,177 +1,215 @@
+-import 'package:supabase_flutter/supabase_flutter.dart';
+-
+-import '../models/auth_user_model.dart';
+-import '../../domain/entities/auth_credential.dart';
+-import 'auth_remote_data_source.dart';
+-
+-/// Supabase-backed implementation of [AuthRemoteDataSource].
+-///
+-/// Keeps Supabase dependency isolated to the data layer (Clean Architecture + DIP).
+-class SupabaseAuthRemoteDataSource implements AuthRemoteDataSource {
+-  final SupabaseClient _client;
+-
+-  SupabaseAuthRemoteDataSource(this._client);
+-
+-  @override
+-  Stream<AuthUserModel?> get authStateChanges =>
+-      _client.auth.onAuthStateChange.map((state) {
+-        final user = state.session?.user ?? _client.auth.currentUser;
+-        return user == null ? null : _mapUser(user);
+-      });
+-
+-@override
+-  Future<AuthUserModel?> getCurrentUser() async {
+-    final user = _client.auth.currentUser;
+-    if (user == null) return null;
+-    return _mapUser(user);
+-  }
+-
+-
+-  @override
+-  Future<AuthUserModel> login(String email, String password) async {
+-    final res = await _client.auth.signInWithPassword(
+-      email: email,
+-      password: password,
+-    );
+-
+-    final user = res.user;
+-    if (user == null) {
+-      throw Exception('Login failed. Please check your credentials.');
+-    }
+-    return _mapUser(user);
+-  }
+-
+-  @override
+-  Future<void> signup({
+-    required String name,
+-    required String email,
+-    required String password,
+-  }) async {
+-    await _client.auth.signUp(
+-      email: email,
+-      password: password,
+-      data: <String, dynamic>{
+-        'name': name,
+-      },
+-    );
+-  }
+-
+-  @override
+-  Future<AuthUserModel> verifyOtp(String email, String otp) async {
+-    // Supabase supports multiple OTP types depending on project auth settings.
+-    // We try 'signup' first, then fall back to 'magiclink' when present.
+-    try {
+-      return await _verifyOtp(email: email, otp: otp, typeName: 'signup');
+-    } catch (_) {
+-      return await _verifyOtp(email: email, otp: otp, typeName: 'magiclink');
+-    }
+-  }
+-
+-  Future<AuthUserModel> _verifyOtp({
+-    required String email,
+-    required String otp,
+-    required String typeName,
+-  }) async {
+-    final type = _otpTypeByName(typeName);
+-
+-    final res = await _client.auth.verifyOTP(
+-      email: email,
+-      token: otp,
+-      type: type,
+-    );
+-
+-    final user = res.user;
+-    if (user == null) {
+-      throw Exception('OTP verification failed.');
+-    }
+-    return _mapUser(user);
+-  }
+-
+-  OtpType _otpTypeByName(String name) {
+-    for (final t in OtpType.values) {
+-      if (t.name == name) return t;
+-    }
+-    // Fallback (keeps compilation safe across Supabase SDK versions).
+-    return OtpType.values.first;
+-  }
+-
+-
+-@override
+-Future<void> requestPhoneOtp({
+-  required String phoneE164,
+-  required AuthOtpChannel preferredChannel,
+-}) async {
+-  // Supabase supports SMS OTP. WhatsApp OTP is not supported natively.
+-  if (preferredChannel == AuthOtpChannel.whatsapp) {
+-    throw UnsupportedError('WhatsApp OTP not supported by Supabase');
+-  }
+-
+-  await _client.auth.signInWithOtp(phone: phoneE164);
+-}
+-
+-@override
+-Future<AuthUserModel> verifyPhoneOtp({
+-  required String phoneE164,
+-  required String code,
+-}) async {
+-  final res = await _client.auth.verifyOTP(
+-    phone: phoneE164,
+-    token: code,
+-    type: OtpType.sms,
+-  );
+-
+-  final user = res.user;
+-  if (user == null) {
+-    throw Exception('OTP verification failed.');
+-  }
+-  return _mapUser(user);
+-}
+-
+-@override
+-Future<void> requestPasswordReset(String email) async {
+-  await _client.auth.resetPasswordForEmail(email);
+-}
+-
+-@override
+-Future<void> changePassword(String newPassword) async {
+-  await _client.auth.updateUser(UserAttributes(password: newPassword));
+-}
+-
+-@override
+-Future<void> resendEmailVerification(String email) async {
+-  await _client.auth.resend(
+-    type: OtpType.signup,
+-    email: email,
+-  );
+-}
+-  AuthUserModel _mapUser(User user) {
+-    final email = user.email ?? '';
+-    final meta = user.userMetadata ?? const <String, dynamic>{};
+-
+-    final name = (meta['name'] ??
+-            meta['full_name'] ??
+-            meta['display_name'] ??
+-            meta['username'] ??
+-            '')
+-        .toString()
+-        .trim();
+-
+-    final phone = (user.phone ?? meta['phone']?.toString())?.trim();
+-    final photoUrl = (meta['avatar_url'] ?? meta['photo_url'] ?? meta['photoUrl'])
+-        ?.toString()
+-        .trim();
+-
+-    return AuthUserModel(
+-      id: user.id,
+-      email: email,
+-      name: name.isNotEmpty ? name : (email.isNotEmpty ? email : 'User'),
+-      phoneNumber: phone?.isEmpty == true ? null : phone,
+-      photoUrl: photoUrl?.isEmpty == true ? null : photoUrl,
+-    );
+-  }
+-
+-  @override
+-  Future<void> logout() async {
+-    await _client.auth.signOut();
+-  }
+-}
++import 'package:supabase_flutter/supabase_flutter.dart' as sb;
++
++import '../../../../core/env/env.dart';
++import '../../domain/entities/auth_event.dart';
++
++import '../models/auth_user_model.dart';
++import '../../domain/entities/auth_credential.dart';
++import 'auth_remote_data_source.dart';
++
++/// Supabase-backed implementation of [AuthRemoteDataSource].
++///
++/// Keeps Supabase dependency isolated to the data layer (Clean Architecture + DIP).
++class SupabaseAuthRemoteDataSource implements AuthRemoteDataSource {
++  final sb.SupabaseClient _client;
++
++  SupabaseAuthRemoteDataSource(this._client);
++
++  @override
++  Stream<AuthUserModel?> get authStateChanges =>
++      _client.auth.onAuthStateChange.map((state) {
++        final user = state.session?.user ?? _client.auth.currentUser;
++        return user == null ? null : _mapUser(user);
++      });
++
++  @override
++  Stream<AuthEventType> get authEvents => _client.auth.onAuthStateChange.map((state) {
++        final name = state.event.toString().split('.').last;
++        switch (name) {
++          case 'initialSession':
++            return AuthEventType.initialSession;
++          case 'signedIn':
++            return AuthEventType.signedIn;
++          case 'signedOut':
++            return AuthEventType.signedOut;
++          case 'tokenRefreshed':
++            return AuthEventType.tokenRefreshed;
++          case 'userUpdated':
++            return AuthEventType.userUpdated;
++          case 'passwordRecovery':
++            return AuthEventType.passwordRecovery;
++          default:
++            return AuthEventType.unknown;
++        }
++      });
++
++
++@override
++  Future<AuthUserModel?> getCurrentUser() async {
++    final user = _client.auth.currentUser;
++    if (user == null) return null;
++    return _mapUser(user);
++  }
++
++
++  @override
++  Future<AuthUserModel> login(String email, String password) async {
++    final res = await _client.auth.signInWithPassword(
++      email: email,
++      password: password,
++    );
++
++    final user = res.user;
++    if (user == null) {
++      throw Exception('Login failed. Please check your credentials.');
++    }
++    return _mapUser(user);
++  }
++
++  @override
++  Future<void> signup({
++    required String name,
++    required String email,
++    required String password,
++  }) async {
++    await _client.auth.signUp(
++      email: email,
++      password: password,
++      data: <String, dynamic>{
++        'name': name,
++      },
++    );
++  }
++
++  @override
++  Future<AuthUserModel> verifyOtp(String email, String otp) async {
++    // Supabase supports multiple OTP types depending on project auth settings.
++    // We try 'signup' first, then fall back to 'magiclink' when present.
++    try {
++      return await _verifyOtp(email: email, otp: otp, typeName: 'signup');
++    } catch (_) {
++      return await _verifyOtp(email: email, otp: otp, typeName: 'magiclink');
++    }
++  }
++
++  Future<AuthUserModel> _verifyOtp({
++    required String email,
++    required String otp,
++    required String typeName,
++  }) async {
++    final type = _otpTypeByName(typeName);
++
++    final res = await _client.auth.verifyOTP(
++      email: email,
++      token: otp,
++      type: type,
++    );
++
++    final user = res.user;
++    if (user == null) {
++      throw Exception('OTP verification failed.');
++    }
++    return _mapUser(user);
++  }
++
++  sb.OtpType _otpTypeByName(String name) {
++    for (final t in sb.OtpType.values) {
++      if (t.name == name) return t;
++    }
++    // Fallback (keeps compilation safe across Supabase SDK versions).
++    return sb.OtpType.values.first;
++  }
++
++
++  @override
++  Future<void> startOAuthSignIn({
++    required OAuthProvider provider,
++    String? redirectTo,
++  }) async {
++    final target = redirectTo ?? (Env.authOAuthRedirectUrl.isNotEmpty ? Env.authOAuthRedirectUrl : null);
++    final sbProvider = sb.OAuthProvider.values.firstWhere(
++      (p) => p.name == provider.name,
++      orElse: () => throw UnsupportedError('OAuth provider not supported: ${provider.name}'),
++    );
++    await _client.auth.signInWithOAuth(sbProvider, redirectTo: target);
++  }
++
++@override
++Future<void> requestPhoneOtp({
++  required String phoneE164,
++  required AuthOtpChannel preferredChannel,
++}) async {
++  // Supabase supports SMS OTP. WhatsApp OTP is not supported natively.
++  if (preferredChannel == AuthOtpChannel.whatsapp) {
++    throw UnsupportedError('WhatsApp OTP not supported by Supabase');
++  }
++
++  await _client.auth.signInWithOtp(phone: phoneE164);
++}
++
++@override
++Future<AuthUserModel> verifyPhoneOtp({
++  required String phoneE164,
++  required String code,
++}) async {
++  final res = await _client.auth.verifyOTP(
++    phone: phoneE164,
++    token: code,
++    type: sb.OtpType.sms,
++  );
++
++  final user = res.user;
++  if (user == null) {
++    throw Exception('OTP verification failed.');
++  }
++  return _mapUser(user);
++}
++
++@override
++Future<void> requestPasswordReset(String email) async {
++  await _client.auth.resetPasswordForEmail(email);
++}
++
++@override
++Future<void> changePassword(String newPassword) async {
++  await _client.auth.updateUser(UserAttributes(password: newPassword));
++}
++
++@override
++Future<void> resendEmailVerification(String email) async {
++  await _client.auth.resend(
++    type: sb.OtpType.signup,
++    email: email,
++  );
++}
++  AuthUserModel _mapUser(sb.User user) {
++    final email = user.email ?? '';
++    final meta = user.userMetadata ?? const <String, dynamic>{};
++
++    final name = (meta['name'] ??
++            meta['full_name'] ??
++            meta['display_name'] ??
++            meta['username'] ??
++            '')
++        .toString()
++        .trim();
++
++    final phone = (user.phone ?? meta['phone']?.toString())?.trim();
++    final photoUrl = (meta['avatar_url'] ?? meta['photo_url'] ?? meta['photoUrl'])
++        ?.toString()
++        .trim();
++
++    return AuthUserModel(
++      id: user.id,
++      email: email,
++      name: name.isNotEmpty ? name : (email.isNotEmpty ? email : 'sb.User'),
++      phoneNumber: phone?.isEmpty == true ? null : phone,
++      photoUrl: photoUrl?.isEmpty == true ? null : photoUrl,
++    );
++  }
++
++  @override
++  Future<void> logout() async {
++    await _client.auth.signOut();
++  }
++}
+diff --git a/lib/features/auth/data/repositories/auth_repository_impl.dart b/lib/features/auth/data/repositories/auth_repository_impl.dart
+index b5536d1..770e0d4 100644
+--- a/lib/features/auth/data/repositories/auth_repository_impl.dart
++++ b/lib/features/auth/data/repositories/auth_repository_impl.dart
+@@ -1,153 +1,157 @@
+-import 'dart:async';
+-
+-import '../../domain/entities/auth_credential.dart';
+-import '../../domain/entities/auth_user.dart';
+-import '../../domain/repositories/auth_repository.dart';
+-import '../datasources/auth_local_data_source.dart';
+-import '../datasources/auth_remote_data_source.dart';
+-import '../models/auth_user_model.dart';
+-import '../strategies/auth_strategy_registry.dart';
+-
+-class AuthRepositoryImpl implements AuthRepository {
+-  final AuthRemoteDataSource _remote;
+-  final AuthLocalDataSource _local;
+-  final AuthStrategyRegistry _registry;
+-
+-  AuthUser? _currentUser;
+-  final StreamController<AuthUser?> _controller =
+-      StreamController<AuthUser?>.broadcast();
+-
+-  StreamSubscription<AuthUserModel?>? _remoteSub;
+-
+-  AuthRepositoryImpl({
+-    required AuthRemoteDataSource remote,
+-    required AuthLocalDataSource local,
+-    required AuthStrategyRegistry registry,
+-  })  : _remote = remote,
+-        _local = local,
+-        _registry = registry {
+-    // Keep repository state consistent with remote provider session changes.
+-    _remoteSub = _remote.authStateChanges.listen(
+-      (model) async {
+-        try {
+-          if (model == null) {
+-            await _local.clear();
+-            _currentUser = null;
+-            _controller.add(null);
+-            return;
+-          }
+-          await _persistAndEmit(model);
+-        } catch (_) {
+-          // Ignore remote stream errors to avoid crashing the app.
+-        }
+-      },
+-    );
+-  }
+-
+-  @override
+-  Stream<AuthUser?> get authStateChanges => _controller.stream;
+-
+-  @override
+-  Future<AuthUser?> getCurrentUser() async {
+-    final cached = await _local.getUser();
+-    _currentUser = cached?.toEntity();
+-    return _currentUser;
+-  }
+-
+-  @override
+-  Future<AuthUser> signIn(AuthCredential credential) async {
+-    // Strategy may throw; upper layers convert to Failure.
+-    final user = await _registry.signIn(credential);
+-    // For email/password login: remote already emitted authStateChanges, but persist anyway for consistency.
+-    if (user == null) {
+-      throw StateError('Sign-in did not return a user for ${credential.runtimeType}');
+-    }
+-    // Persist from remote current user if available; otherwise persist minimal.
+-    final cached = await _local.getUser();
+-    if (cached == null) {
+-      // If datasource returned entity without model, we still want local session for fast bootstrap.
+-      // Keep it minimal: store via remote current user model by calling remote.getCurrentUser().
+-      final model = await _remote.getCurrentUser();
+-      if (model != null) {
+-        await _persistAndEmit(model);
+-        return model.toEntity();
+-      }
+-    }
+-    _currentUser = user;
+-    _controller.add(user);
+-    return user;
+-  }
+-
+-  @override
+-  Future<void> signUp(AuthCredential credential) async {
+-    await _registry.signUp(credential);
+-  }
+-
+-  @override
+-  Future<AuthUser> verifyOtp(OtpVerifyCredential credential) async {
+-    final user = await _registry.signIn(credential);
+-    if (user == null) {
+-      throw StateError('OTP verify did not return a user');
+-    }
+-    final model = await _remote.getCurrentUser();
+-    if (model != null) {
+-      await _persistAndEmit(model);
+-    } else {
+-      _currentUser = user;
+-      _controller.add(user);
+-    }
+-    return user;
+-  }
+-
+-@override
+-Future<void> requestPhoneOtp(PhoneOtpStartCredential credential) async {
+-  await _remote.requestPhoneOtp(
+-    phoneE164: credential.phoneE164,
+-    preferredChannel: credential.preferredChannel,
+-  );
+-}
+-
+-@override
+-Future<AuthUser> verifyPhoneOtp(PhoneOtpVerifyCredential credential) async {
+-  final model = await _remote.verifyPhoneOtp(
+-    phoneE164: credential.phoneE164,
+-    code: credential.code,
+-  );
+-  await _persistAndEmit(model);
+-  return model.toEntity();
+-}
+-
+-@override
+-Future<void> requestPasswordReset(String email) async {
+-  await _remote.requestPasswordReset(email);
+-}
+-
+-@override
+-Future<void> changePassword(String newPassword) async {
+-  await _remote.changePassword(newPassword);
+-}
+-
+-@override
+-Future<void> resendEmailVerification(String email) async {
+-  await _remote.resendEmailVerification(email);
+-}
+-
+-  @override
+-  Future<void> signOut() async {
+-    await _remote.logout();
+-    await _local.clear();
+-    _currentUser = null;
+-    _controller.add(null);
+-  }
+-
+-  Future<void> _persistAndEmit(AuthUserModel model) async {
+-    await _local.saveUser(model);
+-    _currentUser = model.toEntity();
+-    _controller.add(_currentUser);
+-  }
+-
+-  void dispose() {
+-    _remoteSub?.cancel();
+-    _controller.close();
+-  }
+-}
++import 'dart:async';
++
++import '../../domain/entities/auth_credential.dart';
++import '../../domain/entities/auth_user.dart';
++import '../../domain/entities/auth_event.dart';
++import '../../domain/repositories/auth_repository.dart';
++import '../datasources/auth_local_data_source.dart';
++import '../datasources/auth_remote_data_source.dart';
++import '../models/auth_user_model.dart';
++import '../strategies/auth_strategy_registry.dart';
++
++class AuthRepositoryImpl implements AuthRepository {
++  final AuthRemoteDataSource _remote;
++  final AuthLocalDataSource _local;
++  final AuthStrategyRegistry _registry;
++
++  AuthUser? _currentUser;
++  final StreamController<AuthUser?> _controller =
++      StreamController<AuthUser?>.broadcast();
++
++  StreamSubscription<AuthUserModel?>? _remoteSub;
++
++  AuthRepositoryImpl({
++    required AuthRemoteDataSource remote,
++    required AuthLocalDataSource local,
++    required AuthStrategyRegistry registry,
++  })  : _remote = remote,
++        _local = local,
++        _registry = registry {
++    // Keep repository state consistent with remote provider session changes.
++    _remoteSub = _remote.authStateChanges.listen(
++      (model) async {
++        try {
++          if (model == null) {
++            await _local.clear();
++            _currentUser = null;
++            _controller.add(null);
++            return;
++          }
++          await _persistAndEmit(model);
++        } catch (_) {
++          // Ignore remote stream errors to avoid crashing the app.
++        }
++      },
++    );
++  }
++
++  @override
++  Stream<AuthUser?> get authStateChanges => _controller.stream;
++
++  @override
++  Stream<AuthEventType> get authEvents => _remote.authEvents;
++
++  @override
++  Future<AuthUser?> getCurrentUser() async {
++    final cached = await _local.getUser();
++    _currentUser = cached?.toEntity();
++    return _currentUser;
++  }
++
++  @override
++  Future<AuthUser> signIn(AuthCredential credential) async {
++    // Strategy may throw; upper layers convert to Failure.
++    final user = await _registry.signIn(credential);
++    // For email/password login: remote already emitted authStateChanges, but persist anyway for consistency.
++    if (user == null) {
++      throw StateError('Sign-in did not return a user for ${credential.runtimeType}');
++    }
++    // Persist from remote current user if available; otherwise persist minimal.
++    final cached = await _local.getUser();
++    if (cached == null) {
++      // If datasource returned entity without model, we still want local session for fast bootstrap.
++      // Keep it minimal: store via remote current user model by calling remote.getCurrentUser().
++      final model = await _remote.getCurrentUser();
++      if (model != null) {
++        await _persistAndEmit(model);
++        return model.toEntity();
++      }
++    }
++    _currentUser = user;
++    _controller.add(user);
++    return user;
++  }
++
++  @override
++  Future<void> signUp(AuthCredential credential) async {
++    await _registry.signUp(credential);
++  }
++
++  @override
++  Future<AuthUser> verifyOtp(OtpVerifyCredential credential) async {
++    final user = await _registry.signIn(credential);
++    if (user == null) {
++      throw StateError('OTP verify did not return a user');
++    }
++    final model = await _remote.getCurrentUser();
++    if (model != null) {
++      await _persistAndEmit(model);
++    } else {
++      _currentUser = user;
++      _controller.add(user);
++    }
++    return user;
++  }
++
++@override
++Future<void> requestPhoneOtp(PhoneOtpStartCredential credential) async {
++  await _remote.requestPhoneOtp(
++    phoneE164: credential.phoneE164,
++    preferredChannel: credential.preferredChannel,
++  );
++}
++
++@override
++Future<AuthUser> verifyPhoneOtp(PhoneOtpVerifyCredential credential) async {
++  final model = await _remote.verifyPhoneOtp(
++    phoneE164: credential.phoneE164,
++    code: credential.code,
++  );
++  await _persistAndEmit(model);
++  return model.toEntity();
++}
++
++@override
++Future<void> requestPasswordReset(String email) async {
++  await _remote.requestPasswordReset(email);
++}
++
++@override
++Future<void> changePassword(String newPassword) async {
++  await _remote.changePassword(newPassword);
++}
++
++@override
++Future<void> resendEmailVerification(String email) async {
++  await _remote.resendEmailVerification(email);
++}
++
++  @override
++  Future<void> signOut() async {
++    await _remote.logout();
++    await _local.clear();
++    _currentUser = null;
++    _controller.add(null);
++  }
++
++  Future<void> _persistAndEmit(AuthUserModel model) async {
++    await _local.saveUser(model);
++    _currentUser = model.toEntity();
++    _controller.add(_currentUser);
++  }
++
++  void dispose() {
++    _remoteSub?.cancel();
++    _controller.close();
++  }
++}
+\ No newline at end of file
+diff --git a/lib/features/auth/data/strategies/oauth_signin_strategy.dart b/lib/features/auth/data/strategies/oauth_signin_strategy.dart
+index f0e8d22..1efd926 100644
+--- a/lib/features/auth/data/strategies/oauth_signin_strategy.dart
++++ b/lib/features/auth/data/strategies/oauth_signin_strategy.dart
+@@ -1,17 +1,46 @@
+-import '../../../../core/error/failure.dart';
+-import '../../domain/entities/auth_credential.dart';
+-import '../../domain/entities/auth_user.dart';
+-import 'auth_strategy.dart';
+-
+-class OAuthSignInStrategy extends AuthStrategy {
+-  @override
+-  bool canHandle(AuthCredential credential) => credential is OAuthSignInCredential;
+-
+-  @override
+-  Future<AuthUser?> signIn(AuthCredential credential) async {
+-    // Wire Supabase signInWithOAuth later.
+-    throw const NotImplementedFailure(
+-      debugMessage: 'OAuth sign-in not wired yet',
+-    );
+-  }
+-}
++import 'dart:async';
++
++import '../../../../core/env/env.dart';
++import '../../domain/entities/auth_credential.dart';
++import '../../domain/entities/auth_user.dart';
++import '../datasources/auth_remote_data_source.dart';
++import '../models/auth_user_model.dart';
++import 'auth_strategy.dart';
++
++class OAuthSignInStrategy extends AuthStrategy {
++  final AuthRemoteDataSource _remote;
++  OAuthSignInStrategy(this._remote);
++
++  @override
++  bool canHandle(AuthCredential credential) => credential is OAuthSignInCredential;
++
++  @override
++  Future<AuthUser?> signIn(AuthCredential credential) async {
++    final c = credential as OAuthSignInCredential;
++
++    // Start the OAuth flow. For Supabase, this opens an external browser and returns quickly.
++    final redirectTo =
++        Env.authOAuthRedirectUrl.isNotEmpty ? Env.authOAuthRedirectUrl : null;
++
++    await _remote.startOAuthSignIn(provider: c.provider, redirectTo: redirectTo);
++
++    // Wait for auth state change to deliver the session user.
++    // This keeps the repository API consistent (signIn returns a user).
++    final completer = Completer<AuthUserModel>();
++
++    late final StreamSubscription sub;
++    sub = _remote.authStateChanges.listen((model) {
++      if (model != null && !completer.isCompleted) {
++        completer.complete(model);
++      }
++    });
++
++    try {
++      final model =
++          await completer.future.timeout(const Duration(seconds: 90));
++      return model.toEntity();
++    } finally {
++      await sub.cancel();
++    }
++  }
++}
+diff --git a/lib/features/auth/domain/repositories/auth_repository.dart b/lib/features/auth/domain/repositories/auth_repository.dart
+index 5ae9bff..2c42674 100644
+--- a/lib/features/auth/domain/repositories/auth_repository.dart
++++ b/lib/features/auth/domain/repositories/auth_repository.dart
+@@ -1,37 +1,41 @@
+-import '../entities/auth_credential.dart';
+-import '../entities/auth_user.dart';
+-
+-abstract class AuthRepository {
+-  /// Returns the current logged-in user, or null if guest.
+-  Future<AuthUser?> getCurrentUser();
+-
+-  /// Sign in using any supported credential (email/password, OAuth, OTP etc).
+-  Future<AuthUser> signIn(AuthCredential credential);
+-
+-  /// Start signup using credential (e.g. email/password signup).
+-  Future<void> signUp(AuthCredential credential);
+-
+-  /// Verify OTP for email-based flows (step 2 of signup or OTP login).
+-  Future<AuthUser> verifyOtp(OtpVerifyCredential credential);
+-
+-  /// Requests a phone OTP (WhatsApp preferred, with SMS fallback).
+-  Future<void> requestPhoneOtp(PhoneOtpStartCredential credential);
+-
+-  /// Verifies a phone OTP and returns the authenticated user.
+-  Future<AuthUser> verifyPhoneOtp(PhoneOtpVerifyCredential credential);
+-
+-  /// Requests a password reset email (magic link).
+-  Future<void> requestPasswordReset(String email);
+-
+-  /// Changes the password for the current authenticated user.
+-  Future<void> changePassword(String newPassword);
+-
+-  /// Resends verification email for signup confirmation.
+-  Future<void> resendEmailVerification(String email);
+-
+-  /// Logs the user out.
+-  Future<void> signOut();
+-
+-  /// A stream to listen to auth state changes (Logged In <-> Logged Out).
+-  Stream<AuthUser?> get authStateChanges;
+-}
++import '../entities/auth_credential.dart';
++import '../entities/auth_user.dart';
++import '../entities/auth_event.dart';
++
++abstract class AuthRepository {
++  /// Returns the current logged-in user, or null if guest.
++  Future<AuthUser?> getCurrentUser();
++
++  /// Sign in using any supported credential (email/password, OAuth, OTP etc).
++  Future<AuthUser> signIn(AuthCredential credential);
++
++  /// Start signup using credential (e.g. email/password signup).
++  Future<void> signUp(AuthCredential credential);
++
++  /// Verify OTP for email-based flows (step 2 of signup or OTP login).
++  Future<AuthUser> verifyOtp(OtpVerifyCredential credential);
++
++  /// Requests a phone OTP (WhatsApp preferred, with SMS fallback).
++  Future<void> requestPhoneOtp(PhoneOtpStartCredential credential);
++
++  /// Verifies a phone OTP and returns the authenticated user.
++  Future<AuthUser> verifyPhoneOtp(PhoneOtpVerifyCredential credential);
++
++  /// Requests a password reset email (magic link).
++  Future<void> requestPasswordReset(String email);
++
++  /// Changes the password for the current authenticated user.
++  Future<void> changePassword(String newPassword);
++
++  /// Resends verification email for signup confirmation.
++  Future<void> resendEmailVerification(String email);
++
++  /// Logs the user out.
++  Future<void> signOut();
++
++  /// A stream to listen to auth state changes (Logged In <-> Logged Out).
++  Stream<AuthUser?> get authStateChanges;
++
++  /// Emits auth events from the underlying provider (e.g., password recovery).
++  Stream<AuthEventType> get authEvents;
++}
+diff --git a/lib/features/auth/presentation/pages/login_page.dart b/lib/features/auth/presentation/pages/login_page.dart
+index 3f0ecb0..794ee7b 100644
+--- a/lib/features/auth/presentation/pages/login_page.dart
++++ b/lib/features/auth/presentation/pages/login_page.dart
+@@ -1,164 +1,177 @@
+-import 'package:flutter/material.dart';
+-import 'package:provider/provider.dart';
+-import 'package:go_router/go_router.dart';
+-import '../../../../core/design_system/tokens.dart';
+-import '../../../../core/widgets/app_button.dart';
+-import '../providers/auth_provider.dart';
+-
+-class LoginPage extends StatefulWidget {
+-  const LoginPage({super.key, this.from});
+-
+-  final String? from;
+-
+-  @override
+-  State<LoginPage> createState() => _LoginPageState();
+-}
+-
+-class _LoginPageState extends State<LoginPage> {
+-  final _emailCtrl = TextEditingController();
+-  final _passCtrl = TextEditingController();
+-  bool _obscurePassword = true;
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    final auth = Provider.of<AuthProvider>(context);
+-
+-    return Scaffold(
+-      backgroundColor: AppTokens.surface,
+-      body: SafeArea(
+-        child: SingleChildScrollView(
+-          padding: const EdgeInsets.all(AppTokens.space4),
+-          child: Column(
+-            crossAxisAlignment: CrossAxisAlignment.center,
+-            children: [
+-              const SizedBox(height: 40),
+-              // Logo Placeholder
+-              Container(
+-                width: 80, height: 80,
+-                decoration: BoxDecoration(
+-                  color: AppTokens.brand.withOpacity(0.1),
+-                  borderRadius: BorderRadius.circular(20),
+-                ),
+-                child: const Icon(Icons.directions_car, size: 40, color: AppTokens.brand),
+-              ),
+-              const SizedBox(height: 24),
+-              Text(
+-                "Let's get you moving",
+-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+-                  fontWeight: FontWeight.bold,
+-                  color: AppTokens.text,
+-                ),
+-                textAlign: TextAlign.center,
+-              ),
+-              const SizedBox(height: 32),
+-
+-              // Social Buttons (Visual Only for now)
+-              _SocialButton(label: 'Continue with Google', icon: Icons.g_mobiledata),
+-              const SizedBox(height: 12),
+-              _SocialButton(label: 'Continue with Apple', icon: Icons.apple),
+-              const SizedBox(height: 12),
+-              _SocialButton(label: 'Continue with Phone', icon: Icons.phone, onPressed: () {
+-                final from = widget.from;
+-                final qp = from == null ? '' : '?from=${Uri.encodeComponent(from)}';
+-                context.push('/phone-login$qp');
+-              }),
+-
+-              const Padding(
+-                padding: EdgeInsets.symmetric(vertical: 24),
+-                child: Row(children: [
+-                  Expanded(child: Divider()),
+-                  Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text("or", style: TextStyle(color: Colors.grey))),
+-                  Expanded(child: Divider()),
+-                ]),
+-              ),
+-
+-              // Form
+-              if (auth.error != null)
+-                Container(
+-                  padding: const EdgeInsets.all(12),
+-                  margin: const EdgeInsets.only(bottom: 16),
+-                  color: AppTokens.error.withOpacity(0.1),
+-                  child: Text(auth.error!, style: const TextStyle(color: AppTokens.error)),
+-                ),
+-
+-              TextField(
+-                controller: _emailCtrl,
+-                decoration: const InputDecoration(labelText: 'Email or Phone Number'),
+-              ),
+-              const SizedBox(height: 16),
+-              TextField(
+-                controller: _passCtrl,
+-                obscureText: _obscurePassword,
+-                decoration: InputDecoration(
+-                  labelText: 'Password',
+-                  suffixIcon: IconButton(
+-                    icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+-                  ),
+-                ),
+-              ),
+-              Align(
+-                alignment: Alignment.centerRight,
+-                child: TextButton(
+-                  onPressed: () {
+-                    context.push('/forgot-password');
+-                  },
+-                  child: const Text('Forgot password?'),
+-                ),
+-              ),
+-              const SizedBox(height: 24),
+-
+-              SizedBox(
+-                width: double.infinity,
+-                child: AppButton.primary(
+-                  'Login',
+-                  loading: auth.isLoading,
+-                  onPressed: () async {
+-                    final success = await auth.login(_emailCtrl.text, _passCtrl.text);
+-                    if (success && context.mounted) {
+-                      final target = widget.from;
+-                      context.go((target != null && target.isNotEmpty) ? target : '/');
+-                    }
+-                  },
+-                ),
+-              ),
+-
+-              const SizedBox(height: 24),
+-              Row(
+-                mainAxisAlignment: MainAxisAlignment.center,
+-                children: [
+-                  const Text("Don't have an account? ", style: TextStyle(color: Colors.grey)),
+-                  GestureDetector(
+-                    onTap: () => context.push('/signup'),
+-                    child: const Text("Sign Up", style: TextStyle(fontWeight: FontWeight.bold, color: AppTokens.brand)),
+-                  ),
+-                ],
+-              ),
+-            ],
+-          ),
+-        ),
+-      ),
+-    );
+-  }
+-}
+-
+-class _SocialButton extends StatelessWidget {
+-  final String label;
+-  final IconData icon;
+-  final VoidCallback? onPressed;
+-  const _SocialButton({required this.label, required this.icon, this.onPressed});
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return OutlinedButton.icon(
+-      onPressed: onPressed,
+-      icon: Icon(icon, color: AppTokens.text),
+-      label: Text(label, style: const TextStyle(color: AppTokens.text)),
+-      style: OutlinedButton.styleFrom(
+-        padding: const EdgeInsets.symmetric(vertical: 16),
+-        side: const BorderSide(color: AppTokens.outline),
+-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+-      ),
+-    );
+-  }
++import 'package:flutter/material.dart';
++import 'package:provider/provider.dart';
++import 'package:go_router/go_router.dart';
++import '../../../../core/design_system/tokens.dart';
++import '../../../../core/widgets/app_button.dart';
++import '../providers/auth_provider.dart';
++import '../../domain/entities/auth_credential.dart';
++
++class LoginPage extends StatefulWidget {
++  const LoginPage({super.key, this.from});
++
++  final String? from;
++
++  @override
++  State<LoginPage> createState() => _LoginPageState();
++}
++
++class _LoginPageState extends State<LoginPage> {
++  final _emailCtrl = TextEditingController();
++  final _passCtrl = TextEditingController();
++  bool _obscurePassword = true;
++
++  @override
++  Widget build(BuildContext context) {
++    final auth = Provider.of<AuthProvider>(context);
++
++    return Scaffold(
++      backgroundColor: AppTokens.surface,
++      body: SafeArea(
++        child: SingleChildScrollView(
++          padding: const EdgeInsets.all(AppTokens.space4),
++          child: Column(
++            crossAxisAlignment: CrossAxisAlignment.center,
++            children: [
++              const SizedBox(height: 40),
++              // Logo Placeholder
++              Container(
++                width: 80, height: 80,
++                decoration: BoxDecoration(
++                  color: AppTokens.brand.withOpacity(0.1),
++                  borderRadius: BorderRadius.circular(20),
++                ),
++                child: const Icon(Icons.directions_car, size: 40, color: AppTokens.brand),
++              ),
++              const SizedBox(height: 24),
++              Text(
++                "Let's get you moving",
++                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
++                  fontWeight: FontWeight.bold,
++                  color: AppTokens.text,
++                ),
++                textAlign: TextAlign.center,
++              ),
++              const SizedBox(height: 32),
++
++              // Social Buttons (Visual Only for now)
++              _SocialButton(
++                label: 'Continue with Google',
++                icon: Icons.g_mobiledata,
++                onPressed: () => context
++                    .read<AuthProvider>()
++                    .signInWithOAuth(OAuthProvider.google),
++              ),
++              const SizedBox(height: 12),
++              _SocialButton(
++                label: 'Continue with Apple',
++                icon: Icons.apple,
++                onPressed: () => context
++                    .read<AuthProvider>()
++                    .signInWithOAuth(OAuthProvider.apple),
++              ),
++              const SizedBox(height: 12),
++              _SocialButton(label: 'Continue with Phone', icon: Icons.phone, onPressed: () {
++                final from = widget.from;
++                final qp = from == null ? '' : '?from=${Uri.encodeComponent(from)}';
++                context.push('/phone-login$qp');
++              }),
++
++              const Padding(
++                padding: EdgeInsets.symmetric(vertical: 24),
++                child: Row(children: [
++                  Expanded(child: Divider()),
++                  Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text("or", style: TextStyle(color: Colors.grey))),
++                  Expanded(child: Divider()),
++                ]),
++              ),
++
++              // Form
++              if (auth.error != null)
++                Container(
++                  padding: const EdgeInsets.all(12),
++                  margin: const EdgeInsets.only(bottom: 16),
++                  color: AppTokens.error.withOpacity(0.1),
++                  child: Text(auth.error!, style: const TextStyle(color: AppTokens.error)),
++                ),
++
++              TextField(
++                controller: _emailCtrl,
++                decoration: const InputDecoration(labelText: 'Email or Phone Number'),
++              ),
++              const SizedBox(height: 16),
++              TextField(
++                controller: _passCtrl,
++                obscureText: _obscurePassword,
++                decoration: InputDecoration(
++                  labelText: 'Password',
++                  suffixIcon: IconButton(
++                    icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
++                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
++                  ),
++                ),
++              ),
++              Align(
++                alignment: Alignment.centerRight,
++                child: TextButton(
++                  onPressed: () {
++                    context.push('/forgot-password');
++                  },
++                  child: const Text('Forgot password?'),
++                ),
++              ),
++              const SizedBox(height: 24),
++
++              SizedBox(
++                width: double.infinity,
++                child: AppButton.primary(
++                  'Login',
++                  loading: auth.isLoading,
++                  onPressed: () async {
++                    final success = await auth.login(_emailCtrl.text, _passCtrl.text);
++                    if (success && context.mounted) {
++                      final target = widget.from;
++                      context.go((target != null && target.isNotEmpty) ? target : '/');
++                    }
++                  },
++                ),
++              ),
++
++              const SizedBox(height: 24),
++              Row(
++                mainAxisAlignment: MainAxisAlignment.center,
++                children: [
++                  const Text("Don't have an account? ", style: TextStyle(color: Colors.grey)),
++                  GestureDetector(
++                    onTap: () => context.push('/signup'),
++                    child: const Text("Sign Up", style: TextStyle(fontWeight: FontWeight.bold, color: AppTokens.brand)),
++                  ),
++                ],
++              ),
++            ],
++          ),
++        ),
++      ),
++    );
++  }
++}
++
++class _SocialButton extends StatelessWidget {
++  final String label;
++  final IconData icon;
++  final VoidCallback? onPressed;
++  const _SocialButton({required this.label, required this.icon, this.onPressed});
++
++  @override
++  Widget build(BuildContext context) {
++    return OutlinedButton.icon(
++      onPressed: onPressed,
++      icon: Icon(icon, color: AppTokens.text),
++      label: Text(label, style: const TextStyle(color: AppTokens.text)),
++      style: OutlinedButton.styleFrom(
++        padding: const EdgeInsets.symmetric(vertical: 16),
++        side: const BorderSide(color: AppTokens.outline),
++        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
++      ),
++    );
++  }
+ }
+\ No newline at end of file
+diff --git a/lib/features/auth/presentation/providers/auth_provider.dart b/lib/features/auth/presentation/providers/auth_provider.dart
+index e74e0c6..79b8e40 100644
+--- a/lib/features/auth/presentation/providers/auth_provider.dart
++++ b/lib/features/auth/presentation/providers/auth_provider.dart
+@@ -1,371 +1,418 @@
+-import 'dart:async';
+-
+-import 'package:flutter/foundation.dart';
+-
+-import '../../../../core/auth_flow/auth_flow_provider.dart';
+-import '../../../../core/auth_flow/auth_flow_state.dart';
+-import '../../../../core/error/failure.dart';
+-import '../../../../core/platform/biometric_auth.dart';
+-import '../../../../core/result/result.dart';
+-import '../../application/usecases/change_password_usecase.dart';
+-import '../../application/usecases/get_current_user_usecase.dart';
+-import '../../application/usecases/login_usecase.dart';
+-import '../../application/usecases/request_password_reset_usecase.dart';
+-import '../../application/usecases/request_phone_otp_usecase.dart';
+-import '../../application/usecases/resend_email_verification_usecase.dart';
+-import '../../application/usecases/sign_out_usecase.dart';
+-import '../../application/usecases/signup_usecase.dart';
+-import '../../application/usecases/verify_otp_usecase.dart';
+-import '../../application/usecases/verify_phone_otp_usecase.dart';
+-import '../../domain/entities/auth_credential.dart';
+-import '../../domain/entities/auth_user.dart';
+-import '../../domain/repositories/auth_repository.dart';
+-
+-class AuthProvider extends ChangeNotifier {
+-  final AuthRepository _repository;
+-  final AuthFlowProvider _authFlow;
+-  final BiometricAuth _biometricAuth;
+-
+-  late final StreamSubscription<AuthUser?> _sub;
+-
+-  late final GetCurrentUserUseCase _getCurrentUser;
+-  late final LoginUseCase _login;
+-  late final SignupUseCase _signup;
+-  late final VerifyOtpUseCase _verifyOtp;
+-  late final VerifyPhoneOtpUseCase _verifyPhoneOtp;
+-  late final RequestPhoneOtpUseCase _requestPhoneOtp;
+-  late final SignOutUseCase _signOut;
+-  late final RequestPasswordResetUseCase _requestPasswordReset;
+-  late final ChangePasswordUseCase _changePassword;
+-  late final ResendEmailVerificationUseCase _resendEmailVerification;
+-
+-  AuthUser? _user;
+-  bool _isLoading = false;
+-  Failure? _failure;
+-  bool _isInitialized = false;
+-
+-  AuthProvider(
+-    this._repository, {
+-    required AuthFlowProvider authFlow,
+-    required BiometricAuth biometricAuth,
+-  })  : _authFlow = authFlow,
+-        _biometricAuth = biometricAuth,
+-        _getCurrentUser = GetCurrentUserUseCase(_repository),
+-        _login = LoginUseCase(_repository),
+-        _signup = SignupUseCase(_repository),
+-        _verifyOtp = VerifyOtpUseCase(_repository),
+-        _verifyPhoneOtp = VerifyPhoneOtpUseCase(_repository),
+-        _requestPhoneOtp = RequestPhoneOtpUseCase(_repository),
+-        _signOut = SignOutUseCase(_repository),
+-        _requestPasswordReset = RequestPasswordResetUseCase(_repository),
+-        _changePassword = ChangePasswordUseCase(_repository),
+-        _resendEmailVerification = ResendEmailVerificationUseCase(_repository) {
+-    // Listen to repository changes (e.g., session expiry)
+-    _sub = _repository.authStateChanges.listen((user) {
+-      _user = user;
+-
+-      // If user becomes available, clear OTP gate.
+-      if (user != null) {
+-        _authFlow.clearOtp();
+-      }
+-
+-      notifyListeners();
+-    });
+-
+-    _bootstrap();
+-  }
+-
+-  Future<void> _bootstrap() async {
+-    final res = await _getCurrentUser();
+-    res.when(
+-      success: (u) => _user = u,
+-      failure: (_) {},
+-    );
+-
+-    _isInitialized = true;
+-    notifyListeners();
+-  }
+-
+-  AuthUser? get user => _user;
+-  bool get isLoggedIn => _user != null;
+-
+-  bool get isLoading => _isLoading;
+-  Failure? get failure => _failure;
+-  String? get error => _failure?.userMessage;
+-  bool get isInitialized => _isInitialized;
+-
+-  void clearError() {
+-    _failure = null;
+-    notifyListeners();
+-  }
+-
+-  void setValidationError(String message) {
+-    _failure = ValidationFailure(userMessage: message);
+-    notifyListeners();
+-  }
+-
+-  Future<bool> login(String email, String password) async {
+-    _isLoading = true;
+-    _failure = null;
+-    notifyListeners();
+-
+-    final res = await _login(email: email, password: password);
+-    _isLoading = false;
+-
+-    final ok = res.when(
+-      success: (_) {
+-        _authFlow.clearAll();
+-        return true;
+-      },
+-      failure: (f) {
+-        _failure = f;
+-        return false;
+-      },
+-    );
+-
+-    notifyListeners();
+-    return ok;
+-  }
+-
+-  Future<bool> signup(String name, String email, String password) async {
+-    _isLoading = true;
+-    _failure = null;
+-    notifyListeners();
+-
+-    final res = await _signup(name: name, email: email, password: password);
+-    _isLoading = false;
+-
+-    final ok = res.when(
+-      success: (_) {
+-        // Many providers require email verification after signup.
+-        // We gate the UI and let user continue once session/verification updates.
+-        _authFlow.requireEmailVerification(email);
+-        return true;
+-      },
+-      failure: (f) {
+-        _failure = f;
+-        return false;
+-      },
+-    );
+-
+-    notifyListeners();
+-    return ok;
+-  }
+-
+-  Future<bool> verifyOtp(String email, String otp) async {
+-    _isLoading = true;
+-    _failure = null;
+-    notifyListeners();
+-
+-    final res = await _verifyOtp(email: email, otp: otp);
+-    _isLoading = false;
+-
+-    final ok = res.when(
+-      success: (_) {
+-        _authFlow.clearOtp();
+-        return true;
+-      },
+-      failure: (f) {
+-        _failure = f;
+-        return false;
+-      },
+-    );
+-
+-    notifyListeners();
+-    return ok;
+-  }
+-
+-Future<bool> requestPhoneOtp(
+-  String phoneE164, {
+-  AuthOtpChannel preferred = AuthOtpChannel.whatsapp,
+-}) async {
+-  _isLoading = true;
+-  _failure = null;
+-  notifyListeners();
+-
+-  Result<void> res = await _requestPhoneOtp(
+-    phoneE164: phoneE164,
+-    preferredChannel: preferred,
+-  );
+-
+-  // WhatsApp preferred → fall back to SMS when unsupported.
+-  if (preferred == AuthOtpChannel.whatsapp &&
+-      res is FailureResult<void> &&
+-      (res.failure is UnsupportedFailure || res.failure is NotImplementedFailure)) {
+-    res = await _requestPhoneOtp(
+-      phoneE164: phoneE164,
+-      preferredChannel: AuthOtpChannel.sms,
+-    );
+-  }
+-
+-  _isLoading = false;
+-
+-  final ok = res.when(
+-    success: (_) {
+-      _authFlow.requireOtp(
+-        OtpChallenge(type: OtpTargetType.phone, target: phoneE164),
+-      );
+-      return true;
+-    },
+-    failure: (f) {
+-      _failure = f;
+-      return false;
+-    },
+-  );
+-
+-  notifyListeners();
+-  return ok;
+-}
+-  Future<bool> verifyPhoneOtp(String phoneE164, String code) async {
+-    _isLoading = true;
+-    _failure = null;
+-    notifyListeners();
+-
+-    final res = await _verifyPhoneOtp(phoneE164: phoneE164, code: code);
+-    _isLoading = false;
+-
+-    final ok = res.when(
+-      success: (_) {
+-        _authFlow.clearOtp();
+-        _authFlow.clearEmailVerification();
+-        return true;
+-      },
+-      failure: (f) {
+-        _failure = f;
+-        return false;
+-      },
+-    );
+-
+-    notifyListeners();
+-    return ok;
+-  }
+-
+-  Future<bool> requestPasswordReset(String email) async {
+-    _isLoading = true;
+-    _failure = null;
+-    notifyListeners();
+-
+-    final res = await _requestPasswordReset(email: email);
+-    _isLoading = false;
+-
+-    final ok = res.when(
+-      success: (_) => true,
+-      failure: (f) {
+-        _failure = f;
+-        return false;
+-      },
+-    );
+-
+-    notifyListeners();
+-    return ok;
+-  }
+-
+-  Future<bool> changePassword(String newPassword) async {
+-    _isLoading = true;
+-    _failure = null;
+-    notifyListeners();
+-
+-    final res = await _changePassword(newPassword: newPassword);
+-    _isLoading = false;
+-
+-    final ok = res.when(
+-      success: (_) {
+-        _authFlow.clearPasswordUpdate();
+-        return true;
+-      },
+-      failure: (f) {
+-        _failure = f;
+-        return false;
+-      },
+-    );
+-
+-    notifyListeners();
+-    return ok;
+-  }
+-
+-  Future<void> resendEmailVerification(String email) async {
+-    _isLoading = true;
+-    _failure = null;
+-    notifyListeners();
+-
+-    final res = await _resendEmailVerification(email: email);
+-    _isLoading = false;
+-    res.when(
+-      success: (_) {},
+-      failure: (f) => _failure = f,
+-    );
+-
+-    notifyListeners();
+-  }
+-
+-  /// Called when the user completes an external action (email verify / recovery link)
+-  /// and returns to the app.
+-  Future<bool> refreshAfterExternalAction() async {
+-    final res = await _getCurrentUser();
+-    return res.when(
+-      success: (u) {
+-        _user = u;
+-        _authFlow.clearEmailVerification();
+-        _authFlow.clearPasswordUpdate();
+-        notifyListeners();
+-        return true;
+-      },
+-      failure: (f) {
+-        _failure = f;
+-        notifyListeners();
+-        return false;
+-      },
+-    );
+-  }
+-
+-  Future<void> signOut() async {
+-    _isLoading = true;
+-    _failure = null;
+-    notifyListeners();
+-
+-    final res = await _signOut();
+-    _isLoading = false;
+-
+-    res.when(
+-      success: (_) {
+-        _authFlow.clearAll();
+-      },
+-      failure: (f) => _failure = f,
+-    );
+-
+-    notifyListeners();
+-  }
+-
+-  Future<bool> biometricReauth() async {
+-    final supported = await _biometricAuth.isSupported();
+-    return supported.when(
+-      success: (isSupported) async {
+-        if (!isSupported) {
+-          _failure = const UnsupportedFailure();
+-          notifyListeners();
+-          return false;
+-        }
+-        final res = await _biometricAuth.authenticate(reason: 'Unlock Carpool');
+-        return res.when(
+-          success: (_) => true,
+-          failure: (f) {
+-            _failure = f;
+-            notifyListeners();
+-            return false;
+-          },
+-        );
+-      },
+-      failure: (f) {
+-        _failure = f;
+-        notifyListeners();
+-        return false;
+-      },
+-    );
+-  }
+-
+-  @override
+-  void dispose() {
+-    _sub.cancel();
+-    super.dispose();
+-  }
+-}
++import 'dart:async';
++
++import 'package:flutter/foundation.dart';
++
++import '../../../../core/auth_flow/auth_flow_provider.dart';
++import '../../../../core/auth_flow/auth_flow_state.dart';
++import '../../../../core/error/failure.dart';
++import '../../../../core/platform/biometric_auth.dart';
++import '../../../../core/result/result.dart';
++import '../../application/usecases/change_password_usecase.dart';
++import '../../application/usecases/get_current_user_usecase.dart';
++import '../../application/usecases/login_usecase.dart';
++import '../../application/usecases/request_password_reset_usecase.dart';
++import '../../application/usecases/request_phone_otp_usecase.dart';
++import '../../application/usecases/resend_email_verification_usecase.dart';
++import '../../application/usecases/sign_out_usecase.dart';
++import '../../application/usecases/signup_usecase.dart';
++import '../../application/usecases/start_oauth_signin_usecase.dart';
++import '../../application/usecases/verify_otp_usecase.dart';
++import '../../application/usecases/verify_phone_otp_usecase.dart';
++import '../../domain/entities/auth_event.dart';
++import '../../domain/entities/auth_credential.dart';
++import '../../domain/entities/auth_credential.dart';
++import '../../domain/entities/auth_user.dart';
++import '../../domain/repositories/auth_repository.dart';
++
++class AuthProvider extends ChangeNotifier {
++  final AuthRepository _repository;
++  final AuthFlowProvider _authFlow;
++  final BiometricAuth _biometricAuth;
++
++  late final StreamSubscription<AuthUser?> _sub;
++  late final StreamSubscription<AuthEventType> _eventSub;
++
++  late final GetCurrentUserUseCase _getCurrentUser;
++  late final LoginUseCase _login;
++  late final SignupUseCase _signup;
++  late final VerifyOtpUseCase _verifyOtp;
++  late final VerifyPhoneOtpUseCase _verifyPhoneOtp;
++  late final StartOAuthSignInUseCase _startOAuth;
++  late final RequestPhoneOtpUseCase _requestPhoneOtp;
++  late final SignOutUseCase _signOut;
++  late final RequestPasswordResetUseCase _requestPasswordReset;
++  late final ChangePasswordUseCase _changePassword;
++  late final ResendEmailVerificationUseCase _resendEmailVerification;
++
++  AuthUser? _user;
++  bool _isLoading = false;
++  Failure? _failure;
++  bool _isInitialized = false;
++
++  AuthProvider(
++    this._repository, {
++    required AuthFlowProvider authFlow,
++    required BiometricAuth biometricAuth,
++  })  : _authFlow = authFlow,
++        _biometricAuth = biometricAuth,
++        _getCurrentUser = GetCurrentUserUseCase(_repository),
++        _login = LoginUseCase(_repository),
++        _signup = SignupUseCase(_repository),
++        _verifyOtp = VerifyOtpUseCase(_repository),
++        _verifyPhoneOtp = VerifyPhoneOtpUseCase(_repository),
++        _requestPhoneOtp = RequestPhoneOtpUseCase(_repository),
++        _signOut = SignOutUseCase(_repository),
++        _requestPasswordReset = RequestPasswordResetUseCase(_repository),
++        _changePassword = ChangePasswordUseCase(_repository),
++        _resendEmailVerification = ResendEmailVerificationUseCase(_repository) {
++    // Listen to repository changes (e.g., session expiry)
++    _sub = _repository.authStateChanges.listen((user) {
++      _user = user;
++
++      // If user becomes available, clear OTP gate.
++      if (user != null) {
++        _authFlow.clearOtp();
++      }
++
++      notifyListeners();
++    });
++
++    _eventSub = _repository.authEvents.listen((event) {
++      if (event == AuthEventType.passwordRecovery) {
++        _authFlow.requirePasswordUpdate();
++      }
++      if (event == AuthEventType.signedOut) {
++        _authFlow.clearAll();
++      }
++    });
++
++
++    _bootstrap();
++  }
++
++  Future<void> _bootstrap() async {
++    final res = await _getCurrentUser();
++    res.when(
++      success: (u) => _user = u,
++      failure: (_) {},
++    );
++
++    _isInitialized = true;
++    notifyListeners();
++  }
++
++  AuthUser? get user => _user;
++  bool get isLoggedIn => _user != null;
++
++  bool get isLoading => _isLoading;
++  Failure? get failure => _failure;
++  String? get error => _failure?.userMessage;
++  bool get isInitialized => _isInitialized;
++
++  void clearError() {
++    _failure = null;
++    notifyListeners();
++  }
++
++  Future<void> refreshCurrentUser() async {
++    final res = await _getCurrentUser();
++    res.when(
++      success: (u) => _user = u,
++      failure: (_) {},
++    );
++    notifyListeners();
++  }
++
++  void markPasswordRecovery() {
++    _authFlow.requirePasswordUpdate();
++  }
++
++  void setValidationError(String message) {
++    _failure = ValidationFailure(userMessage: message);
++    notifyListeners();
++  }
++
++  Future<bool> signInWithOAuth(OAuthProvider provider) async {
++    _isLoading = true;
++    _failure = null;
++    notifyListeners();
++
++    final res = await _startOAuth(provider);
++    _isLoading = false;
++    final ok = res.when(
++      success: (_) => true,
++      failure: (f) {
++        _failure = f;
++        return false;
++      },
++    );
++    notifyListeners();
++    return ok;
++  }
++
++  Future<bool> login(String email, String password) async {
++    _isLoading = true;
++    _failure = null;
++    notifyListeners();
++
++    final res = await _login(email: email, password: password);
++    _isLoading = false;
++
++    final ok = res.when(
++      success: (_) {
++        _authFlow.clearAll();
++        return true;
++      },
++      failure: (f) {
++        _failure = f;
++        return false;
++      },
++    );
++
++    notifyListeners();
++    return ok;
++  }
++
++  Future<bool> signup(String name, String email, String password) async {
++    _isLoading = true;
++    _failure = null;
++    notifyListeners();
++
++    final res = await _signup(name: name, email: email, password: password);
++    _isLoading = false;
++
++    final ok = res.when(
++      success: (_) {
++        // Many providers require email verification after signup.
++        // We gate the UI and let user continue once session/verification updates.
++        _authFlow.requireEmailVerification(email);
++        return true;
++      },
++      failure: (f) {
++        _failure = f;
++        return false;
++      },
++    );
++
++    notifyListeners();
++    return ok;
++  }
++
++  Future<bool> verifyOtp(String email, String otp) async {
++    _isLoading = true;
++    _failure = null;
++    notifyListeners();
++
++    final res = await _verifyOtp(email: email, otp: otp);
++    _isLoading = false;
++
++    final ok = res.when(
++      success: (_) {
++        _authFlow.clearOtp();
++        return true;
++      },
++      failure: (f) {
++        _failure = f;
++        return false;
++      },
++    );
++
++    notifyListeners();
++    return ok;
++  }
++
++Future<bool> requestPhoneOtp(
++  String phoneE164, {
++  AuthOtpChannel preferred = AuthOtpChannel.whatsapp,
++}) async {
++  _isLoading = true;
++  _failure = null;
++  notifyListeners();
++
++  Result<void> res = await _requestPhoneOtp(
++    phoneE164: phoneE164,
++    preferredChannel: preferred,
++  );
++
++  // WhatsApp preferred → fall back to SMS when unsupported.
++  if (preferred == AuthOtpChannel.whatsapp &&
++      res is FailureResult<void> &&
++      (res.failure is UnsupportedFailure || res.failure is NotImplementedFailure)) {
++    res = await _requestPhoneOtp(
++      phoneE164: phoneE164,
++      preferredChannel: AuthOtpChannel.sms,
++    );
++  }
++
++  _isLoading = false;
++
++  final ok = res.when(
++    success: (_) {
++      _authFlow.requireOtp(
++        OtpChallenge(type: OtpTargetType.phone, target: phoneE164),
++      );
++      return true;
++    },
++    failure: (f) {
++      _failure = f;
++      return false;
++    },
++  );
++
++  notifyListeners();
++  return ok;
++}
++  Future<bool> verifyPhoneOtp(String phoneE164, String code) async {
++    _isLoading = true;
++    _failure = null;
++    notifyListeners();
++
++    final res = await _verifyPhoneOtp(phoneE164: phoneE164, code: code);
++    _isLoading = false;
++
++    final ok = res.when(
++      success: (_) {
++        _authFlow.clearOtp();
++        _authFlow.clearEmailVerification();
++        return true;
++      },
++      failure: (f) {
++        _failure = f;
++        return false;
++      },
++    );
++
++    notifyListeners();
++    return ok;
++  }
++
++  Future<bool> requestPasswordReset(String email) async {
++    _isLoading = true;
++    _failure = null;
++    notifyListeners();
++
++    final res = await _requestPasswordReset(email: email);
++    _isLoading = false;
++
++    final ok = res.when(
++      success: (_) => true,
++      failure: (f) {
++        _failure = f;
++        return false;
++      },
++    );
++
++    notifyListeners();
++    return ok;
++  }
++
++  Future<bool> changePassword(String newPassword) async {
++    _isLoading = true;
++    _failure = null;
++    notifyListeners();
++
++    final res = await _changePassword(newPassword: newPassword);
++    _isLoading = false;
++
++    final ok = res.when(
++      success: (_) {
++        _authFlow.clearPasswordUpdate();
++        return true;
++      },
++      failure: (f) {
++        _failure = f;
++        return false;
++      },
++    );
++
++    notifyListeners();
++    return ok;
++  }
++
++  Future<void> resendEmailVerification(String email) async {
++    _isLoading = true;
++    _failure = null;
++    notifyListeners();
++
++    final res = await _resendEmailVerification(email: email);
++    _isLoading = false;
++    res.when(
++      success: (_) {},
++      failure: (f) => _failure = f,
++    );
++
++    notifyListeners();
++  }
++
++  /// Called when the user completes an external action (email verify / recovery link)
++  /// and returns to the app.
++  Future<bool> refreshAfterExternalAction() async {
++    final res = await _getCurrentUser();
++    return res.when(
++      success: (u) {
++        _user = u;
++        _authFlow.clearEmailVerification();
++        _authFlow.clearPasswordUpdate();
++        notifyListeners();
++        return true;
++      },
++      failure: (f) {
++        _failure = f;
++        notifyListeners();
++        return false;
++      },
++    );
++  }
++
++  Future<void> signOut() async {
++    _isLoading = true;
++    _failure = null;
++    notifyListeners();
++
++    final res = await _signOut();
++    _isLoading = false;
++
++    res.when(
++      success: (_) {
++        _authFlow.clearAll();
++      },
++      failure: (f) => _failure = f,
++    );
++
++    notifyListeners();
++  }
++
++  Future<bool> biometricReauth() async {
++    final supported = await _biometricAuth.isSupported();
++    return supported.when(
++      success: (isSupported) async {
++        if (!isSupported) {
++          _failure = const UnsupportedFailure();
++          notifyListeners();
++          return false;
++        }
++        final res = await _biometricAuth.authenticate(reason: 'Unlock Carpool');
++        return res.when(
++          success: (_) => true,
++          failure: (f) {
++            _failure = f;
++            notifyListeners();
++            return false;
++          },
++        );
++      },
++      failure: (f) {
++        _failure = f;
++        notifyListeners();
++        return false;
++      },
++    );
++  }
++
++  @override
++  void dispose() {
++    _sub.cancel();
++    _eventSub.cancel();
++    super.dispose();
++  }
++}
+\ No newline at end of file

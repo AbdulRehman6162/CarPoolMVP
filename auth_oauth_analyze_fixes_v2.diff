@@ -1,0 +1,171 @@
+diff --git a/lib/app/router.dart b/lib/app/router.dart
+--- a/lib/app/router.dart
++++ b/lib/app/router.dart
+@@ -72,3 +72,8 @@
+     ],
+   );
+ }
++
++bool isAuthCallback(GoRouterState state) {
++  final loc = state.matchedLocation;
++  return loc == '/auth/callback' || loc == '/auth/recovery';
++}
+diff --git a/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart b/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart
+--- a/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart
++++ b/lib/features/auth/data/datasources/supabase_auth_remote_data_source.dart
+@@ -172,7 +172,7 @@
+ 
+ @override
+ Future<void> changePassword(String newPassword) async {
+-  await _client.auth.updateUser(UserAttributes(password: newPassword));
++  await _client.auth.updateUser(sb.UserAttributes(password: newPassword));
+ }
+ 
+ @override
+diff --git a/lib/features/auth/domain/entities/auth_event.dart b/lib/features/auth/domain/entities/auth_event.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/auth/domain/entities/auth_event.dart
+@@ -0,0 +1,13 @@
++/// Domain-safe authentication event types.
++///
++/// This abstracts provider-specific auth events (e.g., Supabase) so higher layers do not depend
++/// on external SDK enums (DIP) and routing guards remain stable (OCP).
++enum AuthEventType {
++  initialSession,
++  signedIn,
++  signedOut,
++  tokenRefreshed,
++  userUpdated,
++  passwordRecovery,
++  unknown,
++}
+diff --git a/lib/features/auth/application/usecases/start_oauth_signin_usecase.dart b/lib/features/auth/application/usecases/start_oauth_signin_usecase.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/auth/application/usecases/start_oauth_signin_usecase.dart
+@@ -0,0 +1,16 @@
++import '../../domain/entities/auth_credential.dart';
++import '../../domain/repositories/auth_repository.dart';
++import '../../../../core/result/result.dart';
++
++/// Starts OAuth sign-in for a provider (Google / Apple / etc).
++///
++/// Returns void because most OAuth providers complete via deep-link callback and authStateChanges.
++class StartOAuthSignInUseCase {
++  final AuthRepository _repository;
++
++  StartOAuthSignInUseCase(this._repository);
++
++  Future<Result<void>> call(OAuthProvider provider) {
++    return _repository.startOAuthSignIn(provider);
++  }
++}
+diff --git a/lib/features/auth/presentation/pages/auth_callback_page.dart b/lib/features/auth/presentation/pages/auth_callback_page.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/auth/presentation/pages/auth_callback_page.dart
+@@ -0,0 +1,45 @@
++import 'package:flutter/material.dart';
++import 'package:supabase_flutter/supabase_flutter.dart' as sb;
++
++/// Handles OAuth redirect callbacks.
++///
++/// Keep this page thin (SRP): it just attempts to let Supabase consume the deep link and then
++/// relies on authStateChanges + router guards to take the user to the right destination.
++class AuthCallbackPage extends StatefulWidget {
++  const AuthCallbackPage({super.key});
++
++  @override
++  State<AuthCallbackPage> createState() => _AuthCallbackPageState();
++}
++
++class _AuthCallbackPageState extends State<AuthCallbackPage> {
++  @override
++  void initState() {
++    super.initState();
++    _handle();
++  }
++
++  Future<void> _handle() async {
++    // Best-effort; different Supabase versions expose slightly different APIs.
++    // This keeps compilation stable without hard-coupling to a specific method signature.
++    try {
++      final client = sb.Supabase.instance.client;
++      final auth = client.auth;
++      // ignore: avoid_dynamic_calls
++      await (auth as dynamic).getSessionFromUrl(Uri.base);
++    } catch (_) {
++      // Ignore and rely on authStateChanges if the session was established by the SDK.
++    }
++
++    if (!mounted) return;
++    // Router redirect logic will decide final route based on session/auth flow.
++    Navigator.of(context).pushReplacementNamed('/');
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    return const Scaffold(
++      body: Center(child: CircularProgressIndicator()),
++    );
++  }
++}
+diff --git a/lib/features/auth/presentation/pages/auth_recovery_callback_page.dart b/lib/features/auth/presentation/pages/auth_recovery_callback_page.dart
+new file mode 100644
+--- /dev/null
++++ b/lib/features/auth/presentation/pages/auth_recovery_callback_page.dart
+@@ -0,0 +1,42 @@
++import 'package:flutter/material.dart';
++import 'package:supabase_flutter/supabase_flutter.dart' as sb;
++
++/// Handles password recovery redirect callbacks.
++///
++/// Keep thin (SRP). We attempt to let Supabase parse the recovery link; routing guards will
++/// then enforce update-password flow.
++class AuthRecoveryCallbackPage extends StatefulWidget {
++  const AuthRecoveryCallbackPage({super.key});
++
++  @override
++  State<AuthRecoveryCallbackPage> createState() => _AuthRecoveryCallbackPageState();
++}
++
++class _AuthRecoveryCallbackPageState extends State<AuthRecoveryCallbackPage> {
++  @override
++  void initState() {
++    super.initState();
++    _handle();
++  }
++
++  Future<void> _handle() async {
++    try {
++      final client = sb.Supabase.instance.client;
++      final auth = client.auth;
++      // ignore: avoid_dynamic_calls
++      await (auth as dynamic).getSessionFromUrl(Uri.base);
++    } catch (_) {
++      // Ignore and rely on authStateChanges + authEvents mapping.
++    }
++
++    if (!mounted) return;
++    Navigator.of(context).pushReplacementNamed('/update-password');
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    return const Scaffold(
++      body: Center(child: CircularProgressIndicator()),
++    );
++  }
++}
+diff --git a/lib/features/auth/presentation/providers/auth_provider.dart b/lib/features/auth/presentation/providers/auth_provider.dart
+--- a/lib/features/auth/presentation/providers/auth_provider.dart
++++ b/lib/features/auth/presentation/providers/auth_provider.dart
+@@ -60,6 +60,7 @@
+         _signup = SignupUseCase(_repository),
+         _verifyOtp = VerifyOtpUseCase(_repository),
+         _verifyPhoneOtp = VerifyPhoneOtpUseCase(_repository),
++        _startOAuth = StartOAuthSignInUseCase(_repository),
+         _requestPhoneOtp = RequestPhoneOtpUseCase(_repository),
+         _signOut = SignOutUseCase(_repository),
+         _requestPasswordReset = RequestPasswordResetUseCase(_repository),

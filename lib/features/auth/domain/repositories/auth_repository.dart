@@ -1,5 +1,6 @@
 import '../entities/auth_credential.dart';
 import '../entities/auth_user.dart';
+import '../entities/auth_event.dart';
 
 abstract class AuthRepository {
   /// Returns the current logged-in user, or null if guest.
@@ -34,4 +35,7 @@ abstract class AuthRepository {
 
   /// A stream to listen to auth state changes (Logged In <-> Logged Out).
   Stream<AuthUser?> get authStateChanges;
+
+  /// Emits auth events from the underlying provider (e.g., password recovery).
+  Stream<AuthEventType> get authEvents;
 }

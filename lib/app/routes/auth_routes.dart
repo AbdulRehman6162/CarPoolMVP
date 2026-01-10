@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth_flow/auth_flow_state.dart';
 import '../../features/auth/presentation/pages/forgot_password_page.dart';
+import '../../features/auth/presentation/pages/auth_callback_page.dart';
+import '../../features/auth/presentation/pages/auth_recovery_callback_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/otp_verification_page.dart';
 import '../../features/auth/presentation/pages/phone_login_page.dart';
@@ -11,6 +13,16 @@ import '../../features/auth/presentation/pages/update_password_page.dart';
 import '../../features/auth/presentation/pages/verify_email_page.dart';
 
 List<RouteBase> authRoutes() => [
+      GoRoute(
+        path: '/auth/callback',
+        name: 'auth-callback',
+        builder: (context, state) => const AuthCallbackPage(),
+      ),
+      GoRoute(
+        path: '/auth/recovery',
+        name: 'auth-recovery',
+        builder: (context, state) => const AuthRecoveryCallbackPage(),
+      ),
       GoRoute(
         path: '/login',
         name: 'login',

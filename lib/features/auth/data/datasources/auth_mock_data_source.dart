@@ -1,4 +1,5 @@
 import '../../domain/entities/auth_credential.dart';
+import '../../domain/entities/auth_event.dart';
 import '../models/auth_user_model.dart';
 import 'auth_remote_data_source.dart';
 
@@ -8,6 +9,9 @@ class MockAuthRemoteDataSource implements AuthRemoteDataSource {
   @override
   Stream<AuthUserModel?> get authStateChanges =>
       const Stream<AuthUserModel?>.empty();
+
+  @override
+  Stream<AuthEventType> get authEvents => const Stream<AuthEventType>.empty();
 
   @override
   Future<AuthUserModel?> getCurrentUser() async => null;
@@ -25,6 +29,15 @@ class MockAuthRemoteDataSource implements AuthRemoteDataSource {
     required String password,
   }) async {
     await Future.delayed(const Duration(milliseconds: 300));
+  }
+
+  @override
+  Future<void> startOAuthSignIn({
+    required OAuthProvider provider,
+    String? redirectTo,
+  }) async {
+    // No-op in mock.
+    await Future.delayed(const Duration(milliseconds: 100));
   }
 
   @override
