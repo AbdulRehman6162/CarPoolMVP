@@ -43,3 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# AGENTS.md Architecture
+.tmp/
+.env
+credentials.json
+token.json

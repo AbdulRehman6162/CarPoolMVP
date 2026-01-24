@@ -1,0 +1,31 @@
+# Python Dependencies for AGENTS.md Architecture
+# Install with: pip install -r requirements.txt
+
+# Supabase (Database + Auth)
+supabase>=2.0.0
+
+# Firebase (Push Notifications only)
+firebase-admin>=6.0.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# HTTP requests
+requests>=2.31.0
+
+# Data processing
+pandas>=2.0.0
+
+# Google API (for Sheets, Slides, etc.)
+google-api-python-client>=2.0.0
+google-auth-httplib2>=0.1.0
+google-auth-oauthlib>=1.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Code quality
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.5.0
